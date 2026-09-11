@@ -91,6 +91,36 @@ impl Palette {
         };
         Color32::from_rgb((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8)
     }
+
+    /// Apply a custom accent color to the palette.
+    pub fn with_accent(mut self, accent: crate::settings::AccentColor) -> Self {
+        let (r, g, b) = accent.rgb();
+        self.accent = Color32::from_rgb(r, g, b);
+        
+        // Calculate accent_hover: 20% brighter, clamped to 255
+        let brighten = |v: u8| {
+            let v = v as u16;
+            ((v + v * 20 / 100).min(255)) as u8
+        };
+        self.accent_hover = Color32::from_rgb(
+            brighten(r),
+            brighten(g),
+            brighten(b),
+        );
+        
+        // Calculate on_accent: white if accent is dark, almost-black if accent is bright
+        // Using perceived luminance: 0.299*R + 0.587*G + 0.114*B
+        let luminance = (0.299 * r as f32 + 0.587 * g as f32 + 0.114 * b as f32) / 255.0;
+        self.on_accent = if luminance > 0.5 {
+            // Bright accent, use dark text
+            Color32::from_rgb(0x0a, 0x14, 0x0e)
+        } else {
+            // Dark accent, use light text
+            Color32::from_rgb(0xff, 0xff, 0xff)
+        };
+        
+        self
+    }
 }
 
 pub const RADIUS: u8 = 8;

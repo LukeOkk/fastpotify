@@ -80,6 +80,60 @@ impl ThemeChoice {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AccentColor {
+    #[default]
+    Green,
+    Blue,
+    Purple,
+    Pink,
+    Orange,
+    Red,
+    Teal,
+    Yellow,
+}
+
+impl AccentColor {
+    pub const ALL: [AccentColor; 8] = [
+        Self::Green,
+        Self::Blue,
+        Self::Purple,
+        Self::Pink,
+        Self::Orange,
+        Self::Red,
+        Self::Teal,
+        Self::Yellow,
+    ];
+
+    pub fn rgb(self) -> (u8, u8, u8) {
+        match self {
+            Self::Green => (0x1e, 0xd7, 0x60),
+            Self::Blue => (0x2e, 0x86, 0xff),
+            Self::Purple => (0x8b, 0x5c, 0xf6),
+            Self::Pink => (0xec, 0x48, 0x99),
+            Self::Orange => (0xf9, 0x73, 0x16),
+            Self::Red => (0xef, 0x44, 0x44),
+            Self::Teal => (0x14, 0xb8, 0xa6),
+            Self::Yellow => (0xea, 0xb3, 0x08),
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Green => "Green",
+            Self::Blue => "Blue",
+            Self::Purple => "Purple",
+            Self::Pink => "Pink",
+            Self::Orange => "Orange",
+            Self::Red => "Red",
+            Self::Teal => "Teal",
+            Self::Yellow => "Yellow",
+        }
+    }
+}
+
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -101,6 +155,8 @@ pub struct Settings {
     pub audio_cache: bool,
     pub audio_cache_mb: u64,
     pub theme: ThemeChoice,
+    #[serde(default)]
+    pub accent_color: AccentColor,
     /// Tint the interface with the colour of the playing album's art.
     pub accent_from_art: bool,
     /// Last local volume, 0..=65535.
@@ -210,6 +266,7 @@ impl Default for Settings {
             audio_cache: true,
             audio_cache_mb: 1024,
             theme: ThemeChoice::Dark,
+            accent_color: AccentColor::Green,
             accent_from_art: true,
             volume: (u16::MAX as u32 * 70 / 100) as u16,
             sidebar_visible: true,

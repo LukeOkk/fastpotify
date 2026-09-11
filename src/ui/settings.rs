@@ -5,7 +5,7 @@ use egui::{Align, CornerRadius, Frame, Layout, Margin, Stroke, Vec2};
 use crate::api::models::pick_image;
 use crate::app::App;
 use crate::model::{Action, Dialog};
-use crate::settings::ThemeChoice;
+use crate::settings::{ThemeChoice, AccentColor};
 use crate::theme::{self, Icon, Palette};
 
 use super::widgets;
@@ -494,6 +494,26 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                         && app.settings.theme != choice
                     {
                         app.settings.theme = choice;
+                        changed = true;
+                    }
+                }
+            });
+        });
+        widgets::setting_row(ui, &palette, "Accent color", "", |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 6.0;
+                for choice in AccentColor::ALL {
+                    if theme::soft_button(
+                        ui,
+                        &palette,
+                        None,
+                        choice.label(),
+                        app.settings.accent_color == choice,
+                    )
+                    .clicked()
+                        && app.settings.accent_color != choice
+                    {
+                        app.settings.accent_color = choice;
                         changed = true;
                     }
                 }

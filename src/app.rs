@@ -2338,6 +2338,7 @@ impl App {
             } else {
                 Palette::light()
             };
+            self.palette = self.palette.with_accent(self.settings.accent_color);
             theme::apply(ctx, &self.palette);
             self.applied_dark = Some(dark);
             self.accents.clear();
@@ -6287,6 +6288,9 @@ impl App {
                     ThemeChoice::Light => egui::ThemePreference::Light,
                     ThemeChoice::System => egui::ThemePreference::System,
                 });
+                // Force apply_theme to recompute even when dark/light did not
+                // change, so an accent colour change takes effect immediately.
+                self.applied_dark = None;
             }
             Action::RestartEngine => {
                 self.save_settings();
