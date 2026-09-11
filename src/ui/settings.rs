@@ -694,13 +694,13 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         widgets::setting_row(
             ui,
             &palette,
-            "Mini player",
+            "Winamp mini player",
             super::keys::platform_shortcut(
                 "Use classic Winamp .wsz skins. Press Ctrl+M or click the skin logo to return. Drop a skin on either window to add it.",
                 "Use classic Winamp .wsz skins. Press Cmd+Shift+M or click the skin logo to return. Drop a skin on either window to add it.",
             ),
             |ui| {
-                if theme::pill_button(ui, &palette, "Switch to it", true).clicked() {
+                if theme::pill_button(ui, &palette, "Switch to it", false).clicked() {
                     app.actions.push(Action::ToggleWinampWindow);
                 }
             },
