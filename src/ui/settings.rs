@@ -621,6 +621,75 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         );
     });
 
+    section(ui, &palette, "Lyrics translation", |ui| {
+        widgets::setting_row(
+            ui,
+            &palette,
+            "Translate lyrics",
+            "Via LibreTranslate's public instance. Cached on disk per song and language.",
+            |ui| {
+                if widgets::switch(
+                    ui,
+                    &palette,
+                    "Translate lyrics",
+                    &mut app.settings.lyrics_translate_enabled,
+                )
+                .changed()
+                {
+                    changed = true;
+                    if app.settings.lyrics_translate_enabled {
+                        app.maybe_translate_lyrics();
+                    }
+                }
+            },
+        );
+        if app.settings.lyrics_translate_enabled {
+            widgets::setting_row(
+                ui,
+                &palette,
+                "Language",
+                "Automatic follows your system's language.",
+                |ui| {
+                    let current = app.settings.lyrics_translate_language.clone();
+                    let current_label = current
+                        .as_deref()
+                        .and_then(|code| {
+                            crate::lyrics::TRANSLATE_LANGUAGES
+                                .iter()
+                                .find(|(iso, _)| *iso == code)
+                                .map(|(_, name)| *name)
+                        })
+                        .unwrap_or("Automatic (system language)");
+                    egui::ComboBox::new("settings-lyrics-translate-language", "")
+                        .selected_text(current_label)
+                        .show_ui(ui, |ui| {
+                            let mut picked = false;
+                            if ui
+                                .selectable_label(current.is_none(), "Automatic (system language)")
+                                .clicked()
+                                && current.is_some()
+                            {
+                                app.settings.lyrics_translate_language = None;
+                                picked = true;
+                            }
+                            for (code, name) in crate::lyrics::TRANSLATE_LANGUAGES {
+                                let selected = current.as_deref() == Some(*code);
+                                if ui.selectable_label(selected, *name).clicked() && !selected {
+                                    app.settings.lyrics_translate_language =
+                                        Some((*code).to_string());
+                                    picked = true;
+                                }
+                            }
+                            if picked {
+                                changed = true;
+                                app.maybe_translate_lyrics();
+                            }
+                        });
+                },
+            );
+        }
+    });
+
     section(ui, &palette, "Winamp skins", |ui| {
         widgets::setting_row(
             ui,

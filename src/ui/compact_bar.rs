@@ -78,6 +78,15 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
         palette.dim
     };
 
+    // `right_to_left`: each widget is placed starting from the right, so
+    // the *first* one added ends up rightmost. Add in reverse of the
+    // left-to-right order Spotify's own compact bar uses (like, connect,
+    // shuffle, previous, play, next, repeat).
+    if theme::pill_button(ui, &palette, "Full window", false).clicked() {
+        app.actions.push(Action::ToggleCompactBarWindow);
+    }
+    ui.add_space(6.0);
+
     let (repeat_icon, repeat_color) = match repeat {
         RepeatMode::Off => (Icon::Repeat, dim),
         RepeatMode::Context => (Icon::Repeat, palette.accent),
@@ -108,6 +117,26 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
     {
         app.actions.push(Action::ToggleShuffle);
     }
+
+    let remote = now.is_some_and(|now| !now.local);
+    let devices = theme::icon_button(
+        ui,
+        Icon::Speaker,
+        15.0,
+        if remote { palette.accent } else { dim },
+        palette.text,
+        "Connect to a device",
+    );
+    ui.ctx().data_mut(|data| {
+        data.insert_temp(
+            egui::Id::new(super::devices::BUTTON_RECT_ID),
+            devices.rect,
+        )
+    });
+    if devices.clicked() {
+        app.actions.push(Action::ToggleDevicesPopup);
+    }
+
     if let Some(now) = now {
         if !now.is_episode {
             let saved = app.is_saved(&now.uri).unwrap_or(false);
@@ -127,8 +156,5 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
             }
         }
     }
-    ui.add_space(6.0);
-    if theme::pill_button(ui, &palette, "Full window", false).clicked() {
-        app.actions.push(Action::ToggleCompactBarWindow);
-    }
+    super::devices::popup(app, ui.ctx());
 }

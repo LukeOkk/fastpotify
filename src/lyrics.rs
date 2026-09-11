@@ -113,6 +113,31 @@ pub fn store(path: &Path, found: &Option<Lyrics>) {
 
 /// The system locale's language, as a 2-letter code (`"es"` from `"es-MX"`,
 /// `"es_ES"`, ...). Falls back to English when the OS won't say.
+/// (ISO 639-1 code, native name), for the lyrics translation pickers in the
+/// lyrics panel and in Settings.
+pub const TRANSLATE_LANGUAGES: &[(&str, &str)] = &[
+    ("en", "English"),
+    ("es", "Español"),
+    ("fr", "Français"),
+    ("de", "Deutsch"),
+    ("it", "Italiano"),
+    ("pt", "Português"),
+    ("ru", "Русский"),
+    ("ja", "日本語"),
+    ("ko", "한국어"),
+    ("zh", "中文 (简体)"),
+    ("zh-TW", "中文 (繁體)"),
+    ("ar", "العربية"),
+    ("hi", "हिन्दी"),
+    ("nl", "Nederlands"),
+    ("sv", "Svenska"),
+    ("pl", "Polski"),
+    ("tr", "Türkçe"),
+    ("el", "Ελληνικά"),
+    ("he", "עברית"),
+    ("vi", "Tiếng Việt"),
+];
+
 pub fn system_language() -> String {
     sys_locale::get_locale()
         .and_then(|locale| {
