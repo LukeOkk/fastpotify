@@ -605,7 +605,7 @@ impl MiniWindow {
                 storage_path: app.dirs.cache.join("winamp.ron"),
             });
         }
-        if app.settings.compact_bar_window {
+        if app.settings.compact_bar_window && !app.compact_bar_suspended {
             return Some(Self {
                 kind: MiniKind::CompactBar,
                 size: app.settings.compact_bar_size.into(),

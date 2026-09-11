@@ -185,6 +185,12 @@ pub struct App {
     /// The window should close and reopen at once as the other kind: the
     /// big window or the Winamp mini player.
     pub switch_intent: bool,
+    /// The compact bar is bounced to the main window because sign-in is
+    /// required. In-memory only: unlike `ToggleCompactBarWindow`, this must
+    /// never persist to `Settings::compact_bar_window`, or a transient
+    /// sign-in hiccup (an expired token, a keychain prompt) would silently
+    /// turn the compact bar off for good the next time the app opens.
+    pub compact_bar_suspended: bool,
     /// Commands from control clients (a second `fastpotify <verb>` launch,
     /// a Raycast script), on the platforms where they do not arrive through
     /// MPRIS. Drained every frame.
@@ -528,6 +534,7 @@ impl App {
             hide_intent: false,
             wants_show: false,
             switch_intent: false,
+            compact_bar_suspended: false,
             control_commands: None,
             control_now_playing: None,
             control_devices: None,
@@ -6889,12 +6896,24 @@ impl App {
         if self.settings.winamp_window && needs_sign_in && !self.switch_intent {
             self.actions.push(Action::ToggleWinampWindow);
         }
-        if self.settings.compact_bar_window && needs_sign_in && !self.switch_intent {
-            self.actions.push(Action::ToggleCompactBarWindow);
+        // The compact bar itself has no room for a sign-in flow, so bounce
+        // to the main window while it's needed -- but only in memory.
+        // Flipping `settings.compact_bar_window` here (as the Winamp branch
+        // above does with its own toggle) would persist through a merely
+        // transient sign-in hiccup (an expired token, a slow keychain
+        // prompt) and silently turn the compact bar off for good.
+        if self.settings.compact_bar_window && needs_sign_in && !self.compact_bar_suspended {
+            self.compact_bar_suspended = true;
+            self.switch_intent = true;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        } else if self.compact_bar_suspended && !needs_sign_in {
+            self.compact_bar_suspended = false;
+            self.switch_intent = true;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
         if self.settings.winamp_window {
             crate::ui::winamp::show(self, ui);
-        } else if self.settings.compact_bar_window {
+        } else if self.settings.compact_bar_window && !self.compact_bar_suspended {
             crate::ui::compact_bar::show(self, ui);
         } else {
             crate::ui::show(self, ui);
