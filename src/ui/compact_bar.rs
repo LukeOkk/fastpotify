@@ -54,9 +54,14 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 );
             });
         });
+    // Clamped: on the frame this window opens, or the one where sign-in
+    // forces it closed again, egui can report a stale or transitional
+    // `inner_rect` (once literally the outgoing main window's full-screen
+    // size). Ignoring anything outside a sane bar size keeps a corrupt
+    // reading from ever reaching disk.
     let size = ui.ctx().input(|input| input.viewport().inner_rect);
     if let Some(rect) = size {
-        let size = [rect.width(), rect.height()];
+        let size = [rect.width().clamp(260.0, 900.0), rect.height().clamp(56.0, 220.0)];
         if (app.settings.compact_bar_size[0] - size[0]).abs() > 1.0
             || (app.settings.compact_bar_size[1] - size[1]).abs() > 1.0
         {
