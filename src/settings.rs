@@ -45,6 +45,8 @@ pub enum ThemeChoice {
     Dark,
     Light,
     System,
+    /// Dark, but window/panel/surface drop to near-black for OLED screens.
+    Oled,
 }
 
 /// Mini-player visualizer mode.
@@ -69,13 +71,14 @@ impl VisMode {
 }
 
 impl ThemeChoice {
-    pub const ALL: [ThemeChoice; 3] = [Self::Dark, Self::Light, Self::System];
+    pub const ALL: [ThemeChoice; 4] = [Self::Dark, Self::Light, Self::System, Self::Oled];
 
     pub fn label(self) -> &'static str {
         match self {
             Self::Dark => "Dark",
             Self::Light => "Light",
             Self::System => "Follow system",
+            Self::Oled => "OLED",
         }
     }
 }
@@ -92,10 +95,11 @@ pub enum AccentColor {
     Red,
     Teal,
     Yellow,
+    White,
 }
 
 impl AccentColor {
-    pub const ALL: [AccentColor; 8] = [
+    pub const ALL: [AccentColor; 9] = [
         Self::Green,
         Self::Blue,
         Self::Purple,
@@ -104,6 +108,7 @@ impl AccentColor {
         Self::Red,
         Self::Teal,
         Self::Yellow,
+        Self::White,
     ];
 
     pub fn rgb(self) -> (u8, u8, u8) {
@@ -116,6 +121,7 @@ impl AccentColor {
             Self::Red => (0xef, 0x44, 0x44),
             Self::Teal => (0x14, 0xb8, 0xa6),
             Self::Yellow => (0xea, 0xb3, 0x08),
+            Self::White => (0xf5, 0xf5, 0xf5),
         }
     }
 
@@ -129,6 +135,7 @@ impl AccentColor {
             Self::Red => "Red",
             Self::Teal => "Teal",
             Self::Yellow => "Yellow",
+            Self::White => "White",
         }
     }
 }
@@ -169,6 +176,14 @@ pub struct Settings {
     pub sidebar_compact: bool,
     pub sidebar_width: f32,
     pub lyrics_width: f32,
+    /// Show lyrics translated via LibreTranslate instead of the original
+    /// language.
+    #[serde(default)]
+    pub lyrics_translate_enabled: bool,
+    /// ISO 639-1 target language for lyrics translation. `None` follows the
+    /// OS locale ([`crate::lyrics::system_language`]).
+    #[serde(default)]
+    pub lyrics_translate_language: Option<String>,
     pub queue_width: f32,
     /// Use compact single-line rows without cover art in track lists.
     pub tracklist_compact: bool,
@@ -202,6 +217,14 @@ pub struct Settings {
     pub zoom: f32,
     /// The Winamp window is open.
     pub winamp_window: bool,
+    /// A small, borderless, resizable "compact bar" window is open: cover,
+    /// title/artist, and transport controls in one row. A simpler
+    /// alternative to the Winamp skin, not the same window.
+    #[serde(default)]
+    pub compact_bar_window: bool,
+    /// The compact bar's last size, in logical pixels.
+    #[serde(default = "default_compact_bar_size")]
+    pub compact_bar_size: [f32; 2],
     /// Windows: keep a taskbar button while the Winamp window is visible.
     pub winamp_show_taskbar: bool,
     /// Skin file or folder name. `None` selects the built-in skin.
@@ -274,6 +297,8 @@ impl Default for Settings {
             sidebar_compact: false,
             sidebar_width: 250.0,
             lyrics_width: 360.0,
+            lyrics_translate_enabled: false,
+            lyrics_translate_language: None,
             queue_width: 360.0,
             tracklist_compact: false,
             search_history: Vec::new(),
@@ -290,6 +315,8 @@ impl Default for Settings {
             library_sort: std::collections::BTreeMap::new(),
             zoom: 1.0,
             winamp_window: false,
+            compact_bar_window: false,
+            compact_bar_size: default_compact_bar_size(),
             winamp_show_taskbar: true,
             skin: None,
             skin_scale: None,
@@ -319,6 +346,10 @@ impl Default for Settings {
 
 fn default_buffer_ms() -> u32 {
     crate::sink::DEFAULT_BUFFER_MS
+}
+
+fn default_compact_bar_size() -> [f32; 2] {
+    [420.0, 72.0]
 }
 
 impl Settings {

@@ -607,6 +607,20 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         );
     });
 
+    section(ui, &palette, "Compact bar", |ui| {
+        widgets::setting_row(
+            ui,
+            &palette,
+            "Compact bar",
+            "A small, borderless, resizable now-playing bar: cover, title, and transport controls in one row.",
+            |ui| {
+                if theme::pill_button(ui, &palette, "Switch to it", true).clicked() {
+                    app.actions.push(Action::ToggleCompactBarWindow);
+                }
+            },
+        );
+    });
+
     section(ui, &palette, "Winamp skins", |ui| {
         widgets::setting_row(
             ui,

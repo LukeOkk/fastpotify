@@ -26,6 +26,9 @@ serde_json = "1"
 log = "0.4"
 env_logger = { version = "0.11", default-features = false, features = ["auto-color", "humantime"] }
 directories = "6"
+# Default target language for lyrics translation: the OS locale, 2-letter
+# code, no OS-specific code of our own.
+sys-locale = "0.3"
 # A small translation trait for catalogs generated from PO files at build time.
 # No system libintl, global locale, or runtime catalog parsing is needed.
 tr = { version = "0.1.11", default-features = false }

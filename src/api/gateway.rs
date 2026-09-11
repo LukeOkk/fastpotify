@@ -102,9 +102,13 @@ pub enum Operation {
 fn plan(operation: Operation, personal_ready: bool) -> ApiSource {
     use Operation::*;
     match operation {
-        CanonicalAccount | PlaylistLibrary | PlaylistSearch | UnsupportedDevelopmentMode => {
-            ApiSource::Shared
-        }
+        CanonicalAccount | PlaylistLibrary | UnsupportedDevelopmentMode => ApiSource::Shared,
+        // The shared app's search quota is split across every Fastpotify
+        // install in the world, so it throttles far sooner than Spotify's
+        // own client does. A personal app has its own quota -- use it once
+        // it is ready, same as playback/catalog calls below.
+        PlaylistSearch if personal_ready => ApiSource::Personal,
+        PlaylistSearch => ApiSource::Shared,
         PlaylistMetadata(PlaylistAccess::External | PlaylistAccess::Unknown)
         | PlaylistItems(PlaylistAccess::External | PlaylistAccess::Unknown)
         | PlaylistMutation(PlaylistAccess::External | PlaylistAccess::Unknown) => ApiSource::Shared,
@@ -409,13 +413,13 @@ mod tests {
             Operation::PlaylistMetadata(PlaylistAccess::Collaborative),
             Operation::PlaylistItems(PlaylistAccess::Owned),
             Operation::PlaylistItems(PlaylistAccess::Collaborative),
+            Operation::PlaylistSearch,
         ] {
             assert_eq!(plan(operation, personal), ApiSource::Personal);
         }
         for operation in [
             Operation::CanonicalAccount,
             Operation::PlaylistLibrary,
-            Operation::PlaylistSearch,
             Operation::UnsupportedDevelopmentMode,
             Operation::PlaylistMetadata(PlaylistAccess::External),
             Operation::PlaylistMetadata(PlaylistAccess::Unknown),

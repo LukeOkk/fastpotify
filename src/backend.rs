@@ -513,6 +513,7 @@ pub enum Command {
     },
     /// The words of a track, from LRCLIB.
     Lyrics(Box<LyricsRequest>),
+    TranslateLyrics(Box<TranslateLyricsRequest>),
     /// The account's playlist tree, folders and all, from the session.
     Rootlist,
     /// Check that a reconnect's pickup really started, and try again if not.
@@ -546,6 +547,15 @@ pub struct LyricsRequest {
     pub query: crate::lyrics::Query,
 }
 
+pub struct TranslateLyricsRequest {
+    /// The track the answer is for, so a stale one is ignored.
+    pub uri: String,
+    pub query: crate::lyrics::Query,
+    pub lines: Vec<crate::lyrics::Line>,
+    /// ISO 639-1 code, e.g. `"es"`.
+    pub target_lang: String,
+}
+
 pub enum Event {
     Auth(AuthStatus),
     Playback(LocalPlayback),
@@ -571,6 +581,12 @@ pub enum Event {
     Lyrics {
         uri: String,
         result: Result<Option<crate::lyrics::Lyrics>, String>,
+    },
+    /// Lyric lines translated to the requested language.
+    LyricsTranslated {
+        uri: String,
+        target_lang: String,
+        result: Result<Vec<crate::lyrics::Line>, String>,
     },
     /// The account's playlist tree, folders and all, and which of its
     /// playlists take songs from this account.
@@ -1087,6 +1103,7 @@ impl Worker {
                 Command::ActivateReceiver(receiver) => self.activate_receiver(*receiver),
                 Command::CheckForUpdates { manual } => self.check_for_updates(manual),
                 Command::Lyrics(request) => self.fetch_lyrics(*request),
+                Command::TranslateLyrics(request) => self.translate_lyrics(*request),
                 Command::Rootlist => self.fetch_rootlist(),
                 Command::VerifyResume => self.verify_resume(),
                 Command::LoadPlaylistCache { id, generation } => {
@@ -1997,6 +2014,30 @@ impl Worker {
             };
             let _ = events.send(Event::Lyrics {
                 uri: request.uri,
+                result,
+            });
+            waker.wake();
+        });
+    }
+
+    fn translate_lyrics(&self, request: TranslateLyricsRequest) {
+        let http = self.http.clone();
+        let events = self.events.clone();
+        let waker = self.waker.clone();
+        let cache_dir = self.dirs.lyrics_cache_dir();
+        tokio::spawn(async move {
+            let result = crate::lyrics::fetch_translation(
+                &http,
+                &cache_dir,
+                &request.query,
+                &request.lines,
+                &request.target_lang,
+            )
+            .await
+            .map_err(|error| format!("{error:#}"));
+            let _ = events.send(Event::LyricsTranslated {
+                uri: request.uri,
+                target_lang: request.target_lang,
                 result,
             });
             waker.wake();

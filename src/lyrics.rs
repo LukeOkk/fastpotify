@@ -111,6 +111,172 @@ pub fn store(path: &Path, found: &Option<Lyrics>) {
     write_cache(path, found);
 }
 
+/// The system locale's language, as a 2-letter code (`"es"` from `"es-MX"`,
+/// `"es_ES"`, ...). Falls back to English when the OS won't say.
+pub fn system_language() -> String {
+    sys_locale::get_locale()
+        .and_then(|locale| {
+            locale
+                .split(|c: char| c == '-' || c == '_')
+                .next()
+                .map(str::to_lowercase)
+        })
+        .filter(|code| code.len() == 2)
+        .unwrap_or_else(|| "en".to_string())
+}
+
+/// LibreTranslate's free community instance: no account or key for the
+/// occasional lyric sheet. Self-host LibreTranslate and point this
+/// elsewhere if that ever becomes too much traffic for the shared one.
+const TRANSLATE_API: &str = "https://libretranslate.com/translate";
+/// Joins every line into one request instead of one per line. A Private Use
+/// Area code point: real lyrics never contain it, so splitting the
+/// translated text back on it is safe.
+const LINE_SEPARATOR: char = '\u{E000}';
+
+#[derive(Serialize)]
+struct TranslateRequest<'a> {
+    q: &'a str,
+    source: &'a str,
+    target: &'a str,
+    format: &'a str,
+}
+
+#[derive(Deserialize)]
+struct TranslateResponse {
+    #[serde(rename = "translatedText")]
+    translated_text: String,
+}
+
+async fn translate_text(http: &reqwest::Client, text: &str, target_lang: &str) -> Result<String> {
+    let response = http
+        .post(TRANSLATE_API)
+        .json(&TranslateRequest {
+            q: text,
+            source: "auto",
+            target: target_lang,
+            format: "text",
+        })
+        .send()
+        .await
+        .context("LibreTranslate request failed")?
+        .error_for_status()
+        .context("LibreTranslate returned an error")?
+        .json::<TranslateResponse>()
+        .await
+        .context("LibreTranslate response was not the expected shape")?;
+    Ok(response.translated_text)
+}
+
+/// Translates every line's text to `target_lang` (ISO 639-1, e.g. `"es"`),
+/// keeping each line's `at_ms`. One request for the whole song when
+/// possible; falls back to one request per line if the joined round-trip
+/// does not come back with the same number of lines (LibreTranslate
+/// sometimes normalises whitespace around the separator).
+pub async fn translate_lines(
+    http: &reqwest::Client,
+    lines: &[Line],
+    target_lang: &str,
+) -> Result<Vec<Line>> {
+    if lines.is_empty() {
+        return Ok(Vec::new());
+    }
+    let joined = lines
+        .iter()
+        .map(|line| line.text.as_str())
+        .collect::<Vec<_>>()
+        .join(&LINE_SEPARATOR.to_string());
+    if let Ok(translated) = translate_text(http, &joined, target_lang).await {
+        let parts: Vec<&str> = translated.split(LINE_SEPARATOR).collect();
+        if parts.len() == lines.len() {
+            return Ok(lines
+                .iter()
+                .zip(parts)
+                .map(|(line, text)| Line {
+                    at_ms: line.at_ms,
+                    text: text.trim().to_string(),
+                })
+                .collect());
+        }
+    }
+    let mut translated_lines = Vec::with_capacity(lines.len());
+    for line in lines {
+        let text = translate_text(http, &line.text, target_lang)
+            .await
+            .unwrap_or_else(|_| line.text.clone());
+        translated_lines.push(Line {
+            at_ms: line.at_ms,
+            text,
+        });
+    }
+    Ok(translated_lines)
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+struct CachedTranslation {
+    lines: Vec<Line>,
+}
+
+fn translation_cache_key(query: &Query, target_lang: &str) -> String {
+    let digest = Sha1::digest(
+        format!(
+            "{}|{}|{}|{}|{}",
+            query.artist, query.title, query.album, query.duration_ms, target_lang
+        )
+        .as_bytes(),
+    );
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+/// The cached translation for `query` into `target_lang`, while fresh.
+pub fn cached_translation(cache_dir: &Path, query: &Query, target_lang: &str) -> Option<Vec<Line>> {
+    let path = cache_dir.join(format!(
+        "{}.translated.json",
+        translation_cache_key(query, target_lang)
+    ));
+    let modified = std::fs::metadata(&path).ok()?.modified().ok()?;
+    if modified.elapsed().unwrap_or(CACHE_LIFETIME) >= CACHE_LIFETIME {
+        return None;
+    }
+    let text = std::fs::read_to_string(&path).ok()?;
+    serde_json::from_str::<CachedTranslation>(&text)
+        .ok()
+        .map(|cached| cached.lines)
+}
+
+/// Remembers a translation for `query` into `target_lang`.
+pub fn store_translation(cache_dir: &Path, query: &Query, target_lang: &str, lines: &[Line]) {
+    let path = cache_dir.join(format!(
+        "{}.translated.json",
+        translation_cache_key(query, target_lang)
+    ));
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(text) = serde_json::to_string(&CachedTranslation {
+        lines: lines.to_vec(),
+    }) {
+        let _ = std::fs::write(path, text);
+    }
+}
+
+/// Fetches (cache-first) the translation of `lines` for `query` into
+/// `target_lang`.
+pub async fn fetch_translation(
+    http: &reqwest::Client,
+    cache_dir: &Path,
+    query: &Query,
+    lines: &[Line],
+    target_lang: &str,
+) -> Result<Vec<Line>> {
+    if let Some(cached) = cached_translation(cache_dir, query, target_lang) {
+        return Ok(cached);
+    }
+    let translated = translate_lines(http, lines, target_lang).await?;
+    store_translation(cache_dir, query, target_lang, &translated);
+    Ok(translated)
+}
+
 /// Fetches lyrics for `query`, using the disk cache when available.
 pub async fn fetch(
     http: &reqwest::Client,

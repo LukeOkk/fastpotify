@@ -17,6 +17,7 @@ pub mod show;
 pub mod sidebar;
 pub mod topbar;
 pub mod widgets;
+pub mod compact_bar;
 pub mod winamp;
 
 use egui::{Align2, Color32, CornerRadius, Frame, Margin, Rect, Stroke, vec2};

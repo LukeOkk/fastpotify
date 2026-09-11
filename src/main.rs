@@ -574,8 +574,17 @@ fn log_panics(path: std::path::PathBuf) {
     }));
 }
 
-/// The Winamp mini player's window, when that is the window to open.
+/// Which small window is open: the pixel-skinned, fixed-size Winamp player,
+/// or the plain, resizable compact bar.
+enum MiniKind {
+    Winamp,
+    CompactBar,
+}
+
+/// A small secondary window, when that is the window to open: either the
+/// Winamp mini player or the compact bar.
 struct MiniWindow {
+    kind: MiniKind,
     /// A first size; the window corrects it once it knows the display.
     size: egui::Vec2,
     position: Option<[f32; 2]>,
@@ -586,13 +595,27 @@ struct MiniWindow {
 
 impl MiniWindow {
     fn wanted(app: &app::App) -> Option<Self> {
-        app.settings.winamp_window.then(|| Self {
-            size: fastpotify::ui::winamp::initial_size(&app.settings),
-            position: app.winamp.restore_pos,
-            on_top: app.settings.winamp_on_top,
-            taskbar: app.settings.winamp_show_taskbar,
-            storage_path: app.dirs.cache.join("winamp.ron"),
-        })
+        if app.settings.winamp_window {
+            return Some(Self {
+                kind: MiniKind::Winamp,
+                size: fastpotify::ui::winamp::initial_size(&app.settings),
+                position: app.winamp.restore_pos,
+                on_top: app.settings.winamp_on_top,
+                taskbar: app.settings.winamp_show_taskbar,
+                storage_path: app.dirs.cache.join("winamp.ron"),
+            });
+        }
+        if app.settings.compact_bar_window {
+            return Some(Self {
+                kind: MiniKind::CompactBar,
+                size: app.settings.compact_bar_size.into(),
+                position: None,
+                on_top: false,
+                taskbar: true,
+                storage_path: app.dirs.cache.join("compact-bar.ron"),
+            });
+        }
+        None
     }
 }
 
@@ -647,18 +670,29 @@ fn native_options(
     let viewport = match mini {
         Some(mini) => {
             let level = app::on_top_window_level(mini.on_top);
-            // See-through, for skins that are not rectangles; the skin
-            // paints every pixel that is the window. MilkDrop runs in its own
-            // process, so nothing else shares this window's surface.
-            let viewport = viewport
-                .with_decorations(false)
-                .with_transparent(true)
-                .with_resizable(false)
-                .with_maximize_button(false)
-                .with_inner_size(mini.size)
-                .with_min_inner_size(mini.size)
-                .with_max_inner_size(mini.size)
-                .with_window_level(level);
+            let viewport = match mini.kind {
+                // See-through, for skins that are not rectangles; the skin
+                // paints every pixel that is the window. MilkDrop runs in
+                // its own process, so nothing else shares this window's
+                // surface. Fixed size: skin bitmaps are pixel-exact.
+                MiniKind::Winamp => viewport
+                    .with_decorations(false)
+                    .with_transparent(true)
+                    .with_resizable(false)
+                    .with_maximize_button(false)
+                    .with_inner_size(mini.size)
+                    .with_min_inner_size(mini.size)
+                    .with_max_inner_size(mini.size),
+                // A plain egui layout, so it can actually resize.
+                MiniKind::CompactBar => viewport
+                    .with_decorations(false)
+                    .with_transparent(false)
+                    .with_resizable(true)
+                    .with_maximize_button(false)
+                    .with_inner_size(mini.size)
+                    .with_min_inner_size([260.0, 56.0]),
+            };
+            let viewport = viewport.with_window_level(level);
             // egui applies this native attribute on Windows only.
             let viewport = viewport.with_taskbar(mini.taskbar);
             match mini.position {
@@ -720,6 +754,7 @@ mod native_window_tests {
             let options = native_options(
                 false,
                 Some(MiniWindow {
+                    kind: MiniKind::Winamp,
                     size,
                     position: Some([300.0, 200.0]),
                     on_top: false,
@@ -751,6 +786,7 @@ mod native_window_tests {
     fn hiding_the_mini_taskbar_button_never_hides_the_main_window_button() {
         for taskbar in [false, true] {
             let mini = MiniWindow {
+                kind: MiniKind::Winamp,
                 size: egui::vec2(550.0, 232.0),
                 position: Some([123.0, 456.0]),
                 on_top: true,

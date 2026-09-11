@@ -8,6 +8,30 @@ use crate::theme::{self, Icon};
 
 use super::widgets;
 
+/// (ISO 639-1 code, native name), for the lyrics translation picker.
+const TRANSLATE_LANGUAGES: &[(&str, &str)] = &[
+    ("en", "English"),
+    ("es", "Español"),
+    ("fr", "Français"),
+    ("de", "Deutsch"),
+    ("it", "Italiano"),
+    ("pt", "Português"),
+    ("ru", "Русский"),
+    ("ja", "日本語"),
+    ("ko", "한국어"),
+    ("zh", "中文 (简体)"),
+    ("zh-TW", "中文 (繁體)"),
+    ("ar", "العربية"),
+    ("hi", "हिन्दी"),
+    ("nl", "Nederlands"),
+    ("sv", "Svenska"),
+    ("pl", "Polski"),
+    ("tr", "Türkçe"),
+    ("el", "Ελληνικά"),
+    ("he", "עברית"),
+    ("vi", "Tiếng Việt"),
+];
+
 const LINE_SIZE: f32 = 19.0;
 const LINE_GAP: f32 = 10.0;
 /// How long a line takes to light up or fade.
@@ -55,8 +79,70 @@ pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {
                     app.lyrics_following = true;
                     app.lyrics_line_shown = None;
                 }
+                if loaded
+                    && theme::icon_button(
+                        ui,
+                        Icon::Globe,
+                        18.0,
+                        if app.settings.lyrics_translate_enabled {
+                            palette.accent
+                        } else {
+                            palette.secondary
+                        },
+                        palette.text,
+                        "Translate lyrics",
+                    )
+                    .clicked()
+                {
+                    app.settings.lyrics_translate_enabled = !app.settings.lyrics_translate_enabled;
+                    app.actions.push(Action::SettingsChanged);
+                    if app.settings.lyrics_translate_enabled {
+                        app.maybe_translate_lyrics();
+                    }
+                }
             });
         });
+        if app.settings.lyrics_translate_enabled {
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.add_space(4.0);
+                theme::text(ui, "Translate to", theme::regular(12.5), palette.secondary);
+                let current = app.settings.lyrics_translate_language.clone();
+                let current_label = current
+                    .as_deref()
+                    .and_then(|code| {
+                        TRANSLATE_LANGUAGES
+                            .iter()
+                            .find(|(iso, _)| *iso == code)
+                            .map(|(_, name)| *name)
+                    })
+                    .unwrap_or("Automatic (system language)");
+                egui::ComboBox::new("lyrics-translate-language", "")
+                    .selected_text(current_label)
+                    .show_ui(ui, |ui| {
+                        let mut changed = false;
+                        if ui
+                            .selectable_label(current.is_none(), "Automatic (system language)")
+                            .clicked()
+                            && current.is_some()
+                        {
+                            app.settings.lyrics_translate_language = None;
+                            changed = true;
+                        }
+                        for (code, name) in TRANSLATE_LANGUAGES {
+                            let selected = current.as_deref() == Some(*code);
+                            if ui.selectable_label(selected, *name).clicked() && !selected {
+                                app.settings.lyrics_translate_language = Some((*code).to_string());
+                                changed = true;
+                            }
+                        }
+                        if changed {
+                            app.actions.push(Action::SettingsChanged);
+                            app.maybe_translate_lyrics();
+                        }
+                    });
+            });
+        }
         ui.add_space(8.0);
         contents(app, ui);
     });
@@ -116,6 +202,17 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
         }
         Loadable::Loaded(Some(lyrics)) => lyrics.clone(),
     };
+    // Translated text swaps in by index; original lines still drive timing
+    // and the active-line highlight, since translation never changes line
+    // count or `at_ms`.
+    let translated_lines = if app.settings.lyrics_translate_enabled {
+        match &app.lyrics_translated {
+            Loadable::Loaded(lines) if lines.len() == lyrics.lines.len() => Some(lines.clone()),
+            _ => None,
+        }
+    } else {
+        None
+    };
 
     let active = lyrics.active_line(now.position_ms);
     let follow = app.lyrics_following && app.lyrics_line_shown != Some(active);
@@ -150,11 +247,14 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
                 } else {
                     theme::regular(LINE_SIZE)
                 };
+                let display_text = translated_lines
+                    .as_ref()
+                    .map_or(line.text.as_str(), |lines| lines[index].text.as_str());
                 // A timed line with no words is the band playing on.
-                let text = if line.text.is_empty() && lyrics.synced {
+                let text = if display_text.is_empty() && lyrics.synced {
                     "\u{266a}"
                 } else {
-                    line.text.as_str()
+                    display_text
                 };
                 let sense = if lyrics.synced {
                     Sense::click()

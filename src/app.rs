@@ -13,7 +13,7 @@ use crate::api::models::{
 };
 use crate::backend::{
     ApiRequest, ApiResponse, AuthStatus, Backend, Command, Event, LocalPlayback, LyricsRequest,
-    PLAYLIST_PAGE_SIZE, RecentsFor, RemoteAction, Waker,
+    PLAYLIST_PAGE_SIZE, RecentsFor, RemoteAction, TranslateLyricsRequest, Waker,
 };
 use crate::media::{MediaCommand, MediaState, MediaTrack};
 use crate::media_controls::MediaService;
@@ -31,7 +31,7 @@ const REMOTE_POLL_ACTIVE: Duration = Duration::from_secs(4);
 const REMOTE_POLL_IDLE: Duration = Duration::from_secs(20);
 const REMOTE_FRESH: Duration = Duration::from_secs(45);
 const DEVICES_FRESH: Duration = Duration::from_secs(12);
-const SEARCH_DEBOUNCE: Duration = Duration::from_millis(280);
+const SEARCH_DEBOUNCE: Duration = Duration::from_millis(180);
 /// How far into a song Previous restarts it rather than stepping back,
 /// matching what librespot does during playback.
 const RESTART_BEFORE_PREVIOUS: u32 = 3_000;
@@ -310,6 +310,12 @@ pub struct App {
     /// the first line), so it moves once per change; `None` until it has
     /// positioned itself at all for this track.
     pub lyrics_line_shown: Option<Option<usize>>,
+    /// The translated lines, when `Settings::lyrics_translate_enabled` and
+    /// the current track's lyrics have a translation loaded or loading.
+    pub lyrics_translated: Loadable<Vec<crate::lyrics::Line>>,
+    /// The `(uri, target_lang)` pair `lyrics_translated` answers, so a
+    /// language change or track change asks again.
+    pub lyrics_translated_for: Option<(String, String)>,
     pub show_devices: bool,
     pub toasts: Vec<Toast>,
     pub actions: Vec<Action>,
@@ -610,6 +616,8 @@ impl App {
             lyrics: Loadable::NotLoaded,
             lyrics_following: true,
             lyrics_line_shown: None,
+            lyrics_translated: Loadable::NotLoaded,
+            lyrics_translated_for: None,
             show_devices: false,
             toasts: Vec::new(),
             actions: Vec::new(),
@@ -703,6 +711,7 @@ impl App {
             ThemeChoice::Dark => egui::ThemePreference::Dark,
             ThemeChoice::Light => egui::ThemePreference::Light,
             ThemeChoice::System => egui::ThemePreference::System,
+            ThemeChoice::Oled => egui::ThemePreference::Dark,
         });
         self.applied_dark = None;
         self.winamp.forget_textures();
@@ -1334,6 +1343,23 @@ impl App {
                     if self.lyrics_uri.as_deref() == Some(uri.as_str()) {
                         self.lyrics = match result {
                             Ok(found) => Loadable::Loaded(found),
+                            Err(error) => Loadable::Failed(error),
+                        };
+                        self.maybe_translate_lyrics();
+                    }
+                }
+                Event::LyricsTranslated {
+                    uri,
+                    target_lang,
+                    result,
+                } => {
+                    let matches_current = self
+                        .lyrics_translated_for
+                        .as_ref()
+                        .is_some_and(|(u, lang)| *u == uri && *lang == target_lang);
+                    if matches_current {
+                        self.lyrics_translated = match result {
+                            Ok(lines) => Loadable::Loaded(lines),
                             Err(error) => Loadable::Failed(error),
                         };
                     }
@@ -2010,6 +2036,59 @@ impl App {
         })));
     }
 
+    /// Kicks off (or re-kicks off, on a language change) a translation of
+    /// the loaded lyrics, when the user has translation turned on.
+    pub fn maybe_translate_lyrics(&mut self) {
+        if !self.settings.lyrics_translate_enabled {
+            return;
+        }
+        let Some(now) = self.now_playing() else {
+            return;
+        };
+        let Loadable::Loaded(Some(lyrics)) = &self.lyrics else {
+            return;
+        };
+        if lyrics.instrumental || lyrics.lines.is_empty() {
+            return;
+        }
+        let target_lang = self
+            .settings
+            .lyrics_translate_language
+            .clone()
+            .unwrap_or_else(crate::lyrics::system_language);
+        let already_current = self
+            .lyrics_translated_for
+            .as_ref()
+            .is_some_and(|(uri, lang)| *uri == now.uri && *lang == target_lang);
+        if already_current
+            && !matches!(
+                self.lyrics_translated,
+                Loadable::NotLoaded | Loadable::Failed(_)
+            )
+        {
+            return;
+        }
+        let lines = lyrics.lines.clone();
+        self.lyrics_translated_for = Some((now.uri.clone(), target_lang.clone()));
+        self.lyrics_translated = Loadable::Loading;
+        self.backend
+            .send(Command::TranslateLyrics(Box::new(TranslateLyricsRequest {
+                uri: now.uri.clone(),
+                query: crate::lyrics::Query {
+                    artist: now
+                        .artists
+                        .first()
+                        .map(|artist| artist.name.clone())
+                        .unwrap_or_default(),
+                    title: now.title.clone(),
+                    album: now.album_name.clone(),
+                    duration_ms: now.duration_ms,
+                },
+                lines,
+                target_lang,
+            })));
+    }
+
     /// Pushes the Winamp window's always-on-top level to the live window.
     fn push_winamp_level(&self, ctx: &egui::Context) {
         if let Some(level) =
@@ -2334,7 +2413,11 @@ impl App {
         let dark = ctx.theme() == egui::Theme::Dark;
         if self.applied_dark != Some(dark) {
             self.palette = if dark {
-                Palette::dark()
+                if self.settings.theme == ThemeChoice::Oled {
+                    Palette::oled()
+                } else {
+                    Palette::dark()
+                }
             } else {
                 Palette::light()
             };
@@ -6287,6 +6370,7 @@ impl App {
                     ThemeChoice::Dark => egui::ThemePreference::Dark,
                     ThemeChoice::Light => egui::ThemePreference::Light,
                     ThemeChoice::System => egui::ThemePreference::System,
+                    ThemeChoice::Oled => egui::ThemePreference::Dark,
                 });
                 // Force apply_theme to recompute even when dark/light did not
                 // change, so an accent colour change takes effect immediately.
@@ -6382,6 +6466,20 @@ impl App {
                 self.session_window_size = self.last_window_size.or(self.session_window_size);
                 self.session_window_pos = self.last_window_pos.or(self.session_window_pos);
                 self.settings.winamp_window = !self.settings.winamp_window;
+                if self.settings.winamp_window {
+                    self.settings.compact_bar_window = false;
+                }
+                self.settings_dirty = true;
+                self.switch_intent = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+            Action::ToggleCompactBarWindow => {
+                self.session_window_size = self.last_window_size.or(self.session_window_size);
+                self.session_window_pos = self.last_window_pos.or(self.session_window_pos);
+                self.settings.compact_bar_window = !self.settings.compact_bar_window;
+                if self.settings.compact_bar_window {
+                    self.settings.winamp_window = false;
+                }
                 self.settings_dirty = true;
                 self.switch_intent = true;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -6791,8 +6889,13 @@ impl App {
         if self.settings.winamp_window && needs_sign_in && !self.switch_intent {
             self.actions.push(Action::ToggleWinampWindow);
         }
+        if self.settings.compact_bar_window && needs_sign_in && !self.switch_intent {
+            self.actions.push(Action::ToggleCompactBarWindow);
+        }
         if self.settings.winamp_window {
             crate::ui::winamp::show(self, ui);
+        } else if self.settings.compact_bar_window {
+            crate::ui::compact_bar::show(self, ui);
         } else {
             crate::ui::show(self, ui);
         }
@@ -6800,7 +6903,8 @@ impl App {
         self.refresh_frame_now();
         self.sync_media_controls(ctx);
 
-        if !self.settings.winamp_window && !self.switch_intent {
+        if !self.settings.winamp_window && !self.settings.compact_bar_window && !self.switch_intent
+        {
             if let Some(rect) = ctx.input(|input| input.viewport().inner_rect) {
                 self.last_window_size = Some([rect.width(), rect.height()]);
             }

@@ -50,6 +50,20 @@ impl Palette {
         }
     }
 
+    /// Like [`Self::dark`], but window/panel/surface drop to near-black so
+    /// OLED screens turn those pixels off.
+    pub fn oled() -> Self {
+        Self {
+            window: Color32::from_rgb(0x00, 0x00, 0x00),
+            panel: Color32::from_rgb(0x00, 0x00, 0x00),
+            surface: Color32::from_rgb(0x08, 0x08, 0x08),
+            surface_hover: Color32::from_rgb(0x14, 0x14, 0x16),
+            surface_active: Color32::from_rgb(0x1c, 0x1c, 0x1f),
+            outline: Color32::from_rgb(0x1a, 0x1a, 0x1c),
+            ..Self::dark()
+        }
+    }
+
     pub fn light() -> Self {
         Self {
             dark: false,

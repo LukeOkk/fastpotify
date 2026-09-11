@@ -860,6 +860,8 @@ pub enum Action {
     ClearPlayHistory,
     /// Open or close the Winamp window.
     ToggleWinampWindow,
+    /// Open or close the compact bar window.
+    ToggleCompactBarWindow,
     /// Select a skin, or the built-in skin for `None`.
     SetSkin(Option<String>),
     /// Install and select a skin file.
