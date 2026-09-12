@@ -40,87 +40,7 @@ pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {
             ui.available_width(),
         );
         ui.add_space(window_controls.lyrics_top);
-        ui.horizontal(|ui| {
-            ui.add_space(4.0);
-            theme::text(ui, "Lyrics", theme::bold(18.0), palette.text);
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if theme::icon_button(ui, Icon::X, 18.0, palette.secondary, palette.text, "Close")
-                    .clicked()
-                {
-                    app.actions.push(Action::ToggleLyricsPanel);
-                }
-                let loaded = matches!(&app.lyrics, Loadable::Loaded(Some(_)));
-                if loaded
-                    && !app.lyrics_following
-                    && theme::pill_button(ui, &palette, "Follow", false).clicked()
-                {
-                    app.lyrics_following = true;
-                    app.lyrics_line_shown = None;
-                }
-                if loaded
-                    && theme::icon_button(
-                        ui,
-                        Icon::Globe,
-                        18.0,
-                        if app.settings.lyrics_translate_enabled {
-                            palette.accent
-                        } else {
-                            palette.secondary
-                        },
-                        palette.text,
-                        "Translate lyrics",
-                    )
-                    .clicked()
-                {
-                    app.settings.lyrics_translate_enabled = !app.settings.lyrics_translate_enabled;
-                    app.actions.push(Action::SettingsChanged);
-                    if app.settings.lyrics_translate_enabled {
-                        app.maybe_translate_lyrics();
-                    }
-                }
-            });
-        });
-        if app.settings.lyrics_translate_enabled {
-            ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                ui.add_space(4.0);
-                theme::text(ui, "Translate to", theme::regular(12.5), palette.secondary);
-                let current = app.settings.lyrics_translate_language.clone();
-                let current_label = current
-                    .as_deref()
-                    .and_then(|code| {
-                        TRANSLATE_LANGUAGES
-                            .iter()
-                            .find(|(iso, _)| *iso == code)
-                            .map(|(_, name)| *name)
-                    })
-                    .unwrap_or("Automatic (system language)");
-                egui::ComboBox::new("lyrics-translate-language", "")
-                    .selected_text(current_label)
-                    .show_ui(ui, |ui| {
-                        let mut changed = false;
-                        if ui
-                            .selectable_label(current.is_none(), "Automatic (system language)")
-                            .clicked()
-                            && current.is_some()
-                        {
-                            app.settings.lyrics_translate_language = None;
-                            changed = true;
-                        }
-                        for (code, name) in TRANSLATE_LANGUAGES {
-                            let selected = current.as_deref() == Some(*code);
-                            if ui.selectable_label(selected, *name).clicked() && !selected {
-                                app.settings.lyrics_translate_language = Some((*code).to_string());
-                                changed = true;
-                            }
-                        }
-                        if changed {
-                            app.actions.push(Action::SettingsChanged);
-                            app.maybe_translate_lyrics();
-                        }
-                    });
-            });
-        }
+        header(app, ui);
         ui.add_space(8.0);
         contents(app, ui);
     });
@@ -131,7 +51,95 @@ pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {
     }
 }
 
-fn contents(app: &mut App, ui: &mut egui::Ui) {
+/// The title row (close/follow/translate) and, when translation is on, the
+/// language picker below it. Shared by the side panel and the compact
+/// bar's own lyrics area.
+pub(crate) fn header(app: &mut App, ui: &mut egui::Ui) {
+    let palette = app.palette;
+    ui.horizontal(|ui| {
+        ui.add_space(4.0);
+        theme::text(ui, "Lyrics", theme::bold(18.0), palette.text);
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            if theme::icon_button(ui, Icon::X, 18.0, palette.secondary, palette.text, "Close")
+                .clicked()
+            {
+                app.actions.push(Action::ToggleLyricsPanel);
+            }
+            let loaded = matches!(&app.lyrics, Loadable::Loaded(Some(_)));
+            if loaded
+                && !app.lyrics_following
+                && theme::pill_button(ui, &palette, "Follow", false).clicked()
+            {
+                app.lyrics_following = true;
+                app.lyrics_line_shown = None;
+            }
+            if loaded
+                && theme::icon_button(
+                    ui,
+                    Icon::Globe,
+                    18.0,
+                    if app.settings.lyrics_translate_enabled {
+                        palette.accent
+                    } else {
+                        palette.secondary
+                    },
+                    palette.text,
+                    "Translate lyrics",
+                )
+                .clicked()
+            {
+                app.settings.lyrics_translate_enabled = !app.settings.lyrics_translate_enabled;
+                app.actions.push(Action::SettingsChanged);
+                if app.settings.lyrics_translate_enabled {
+                    app.maybe_translate_lyrics();
+                }
+            }
+        });
+    });
+    if app.settings.lyrics_translate_enabled {
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            ui.add_space(4.0);
+            theme::text(ui, "Translate to", theme::regular(12.5), palette.secondary);
+            let current = app.settings.lyrics_translate_language.clone();
+            let current_label = current
+                .as_deref()
+                .and_then(|code| {
+                    TRANSLATE_LANGUAGES
+                        .iter()
+                        .find(|(iso, _)| *iso == code)
+                        .map(|(_, name)| *name)
+                })
+                .unwrap_or("Automatic (system language)");
+            egui::ComboBox::new("lyrics-translate-language", "")
+                .selected_text(current_label)
+                .show_ui(ui, |ui| {
+                    let mut changed = false;
+                    if ui
+                        .selectable_label(current.is_none(), "Automatic (system language)")
+                        .clicked()
+                        && current.is_some()
+                    {
+                        app.settings.lyrics_translate_language = None;
+                        changed = true;
+                    }
+                    for (code, name) in TRANSLATE_LANGUAGES {
+                        let selected = current.as_deref() == Some(*code);
+                        if ui.selectable_label(selected, *name).clicked() && !selected {
+                            app.settings.lyrics_translate_language = Some((*code).to_string());
+                            changed = true;
+                        }
+                    }
+                    if changed {
+                        app.actions.push(Action::SettingsChanged);
+                        app.maybe_translate_lyrics();
+                    }
+                });
+        });
+    }
+}
+
+pub(crate) fn contents(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
     let Some(now) = app.now_playing() else {
         widgets::empty_state(

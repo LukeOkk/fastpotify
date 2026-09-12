@@ -25,6 +25,11 @@ const CONTROLS_WIDTH: f32 = 300.0;
 const METER_WIDTH: f32 = 64.0;
 const METER_BARS: usize = 14;
 
+/// The top row's own height, so lyrics (when open) get whatever is left
+/// instead of being squeezed into a `horizontal_centered` that grows with
+/// its own content.
+const BAR_HEIGHT: f32 = 72.0;
+
 pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
     egui::Frame::new()
@@ -33,7 +38,18 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         .show(ui, |ui| {
             ui.set_min_size(ui.available_size());
             let now = app.now_playing();
-            ui.horizontal_centered(|ui| {
+            let bar_height = BAR_HEIGHT.min(ui.available_height());
+            let (bar_rect, _) = ui.allocate_exact_size(
+                Vec2::new(ui.available_width(), bar_height),
+                egui::Sense::hover(),
+            );
+            let mut bar_ui = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(bar_rect)
+                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
+            );
+            let ui = &mut bar_ui;
+            {
                 let cover_size = ui.available_height().min(56.0);
                 let (cover_rect, _) =
                     ui.allocate_exact_size(Vec2::splat(cover_size), egui::Sense::hover());
@@ -88,7 +104,13 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     egui::Layout::right_to_left(egui::Align::Center),
                     |ui| transport(app, ui, now.as_ref()),
                 );
-            });
+            }
+            if app.show_lyrics_panel {
+                ui.separator();
+                super::lyrics::header(app, ui);
+                ui.add_space(4.0);
+                super::lyrics::contents(app, ui);
+            }
         });
     // Clamped: on the frame this window opens, or the one where sign-in
     // forces it closed again, egui can report a stale or transitional
@@ -179,6 +201,24 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
     .clicked()
     {
         app.actions.push(Action::ToggleCompactBarWindow);
+    }
+    ui.add_space(4.0);
+
+    if theme::icon_button(
+        ui,
+        Icon::Mic,
+        15.0,
+        if app.show_lyrics_panel {
+            palette.accent
+        } else {
+            palette.secondary
+        },
+        palette.text,
+        "Lyrics",
+    )
+    .clicked()
+    {
+        app.actions.push(Action::ToggleLyricsPanel);
     }
     ui.add_space(4.0);
 

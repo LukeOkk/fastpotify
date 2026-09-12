@@ -43,15 +43,17 @@ pub fn handle(app: &mut App, ctx: &egui::Context) {
             key(Modifiers::COMMAND, Key::H, Action::Open(Page::Home));
         }
         key(Modifiers::COMMAND, Key::L, Action::Open(Page::LikedSongs));
-        // Cmd+M minimises on macOS.
+        // Cmd+M minimises on macOS. The compact bar is now the mini player
+        // this shortcut opens; the Winamp skin stays reachable from
+        // Settings > Winamp skins for whoever still wants it.
         if cfg!(target_os = "macos") {
             key(
                 Modifiers::COMMAND | Modifiers::SHIFT,
                 Key::M,
-                Action::ToggleWinampWindow,
+                Action::ToggleCompactBarWindow,
             );
         } else {
-            key(Modifiers::COMMAND, Key::M, Action::ToggleWinampWindow);
+            key(Modifiers::COMMAND, Key::M, Action::ToggleCompactBarWindow);
         }
         // Winamp's key for starting and stopping the visualisation plug-in.
         key(
@@ -193,7 +195,7 @@ pub const SHORTCUTS: &[(&str, &str)] = &[
         platform_shortcut("Ctrl+Shift+B", "Cmd+Shift+B"),
         "Go to the playing album",
     ),
-    (WINAMP_SHORTCUT, "Winamp mini player"),
+    (WINAMP_SHORTCUT, "Mini player"),
     (MILKDROP_SHORTCUT, "MilkDrop, under the mini player"),
     ("F  or  double-click", "MilkDrop: fill the screen"),
     ("→  /  N", "MilkDrop: next preset"),
@@ -257,10 +259,10 @@ mod tests {
         };
         if cfg!(target_os = "macos") {
             assert_eq!(label("Home"), "Cmd+Shift+H");
-            assert_eq!(label("Winamp mini player"), "Cmd+Shift+M");
+            assert_eq!(label("Mini player"), "Cmd+Shift+M");
         } else {
             assert_eq!(label("Home"), "Ctrl+H");
-            assert_eq!(label("Winamp mini player"), "Ctrl+M");
+            assert_eq!(label("Mini player"), "Ctrl+M");
         }
     }
 
