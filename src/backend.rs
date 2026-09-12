@@ -554,6 +554,7 @@ pub struct TranslateLyricsRequest {
     pub lines: Vec<crate::lyrics::Line>,
     /// ISO 639-1 code, e.g. `"es"`.
     pub target_lang: String,
+    pub config: crate::lyrics::TranslateConfig,
 }
 
 pub enum Event {
@@ -2028,6 +2029,7 @@ impl Worker {
         tokio::spawn(async move {
             let result = crate::lyrics::fetch_translation(
                 &http,
+                &request.config,
                 &cache_dir,
                 &request.query,
                 &request.lines,

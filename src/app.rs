@@ -2093,6 +2093,14 @@ impl App {
                 },
                 lines,
                 target_lang,
+                config: crate::lyrics::TranslateConfig {
+                    api_url: self
+                        .settings
+                        .lyrics_translate_api_url
+                        .clone()
+                        .unwrap_or_else(|| crate::lyrics::DEFAULT_TRANSLATE_API.to_string()),
+                    api_key: self.settings.lyrics_translate_api_key.clone(),
+                },
             })));
     }
 

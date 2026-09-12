@@ -626,7 +626,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             ui,
             &palette,
             "Translate lyrics",
-            "Via LibreTranslate's public instance. Cached on disk per song and language.",
+            "Via a LibreTranslate-compatible server. The official one needs an API key below (get one at libretranslate.com); a self-hosted server usually does not.",
             |ui| {
                 if widgets::switch(
                     ui,
@@ -685,6 +685,68 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                                 app.maybe_translate_lyrics();
                             }
                         });
+                },
+            );
+            widgets::setting_row(
+                ui,
+                &palette,
+                "Translation server",
+                "Empty uses the official libretranslate.com, which requires the API key below.",
+                |ui| {
+                    let mut url = app.settings.lyrics_translate_api_url.clone().unwrap_or_default();
+                    let response = Frame::new()
+                        .fill(palette.surface)
+                        .corner_radius(CornerRadius::same(6))
+                        .inner_margin(Margin::symmetric(10, 6))
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::TextEdit::singleline(&mut url)
+                                    .hint_text(
+                                        egui::RichText::new("https://libretranslate.com/translate")
+                                            .color(palette.dim),
+                                    )
+                                    .font(theme::regular(13.0))
+                                    .frame(egui::Frame::NONE)
+                                    .desired_width(260.0),
+                            )
+                        })
+                        .inner;
+                    if response.changed() {
+                        let trimmed = url.trim().to_string();
+                        app.settings.lyrics_translate_api_url =
+                            (!trimmed.is_empty()).then_some(trimmed);
+                        changed = true;
+                    }
+                },
+            );
+            widgets::setting_row(
+                ui,
+                &palette,
+                "API key",
+                "Only needed for the official libretranslate.com server.",
+                |ui| {
+                    let mut key = app.settings.lyrics_translate_api_key.clone().unwrap_or_default();
+                    let response = Frame::new()
+                        .fill(palette.surface)
+                        .corner_radius(CornerRadius::same(6))
+                        .inner_margin(Margin::symmetric(10, 6))
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::TextEdit::singleline(&mut key)
+                                    .password(true)
+                                    .hint_text(egui::RichText::new("API key").color(palette.dim))
+                                    .font(theme::regular(13.0))
+                                    .frame(egui::Frame::NONE)
+                                    .desired_width(200.0),
+                            )
+                        })
+                        .inner;
+                    if response.changed() {
+                        let trimmed = key.trim().to_string();
+                        app.settings.lyrics_translate_api_key =
+                            (!trimmed.is_empty()).then_some(trimmed);
+                        changed = true;
+                    }
                 },
             );
         }

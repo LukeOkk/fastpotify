@@ -150,10 +150,10 @@ pub fn system_language() -> String {
         .unwrap_or_else(|| "en".to_string())
 }
 
-/// LibreTranslate's free community instance: no account or key for the
-/// occasional lyric sheet. Self-host LibreTranslate and point this
-/// elsewhere if that ever becomes too much traffic for the shared one.
-const TRANSLATE_API: &str = "https://libretranslate.com/translate";
+/// LibreTranslate's official hosted instance now requires an account and
+/// API key even for light use (its old free-without-a-key tier is gone).
+/// Used only when the user hasn't set their own server in Settings.
+pub const DEFAULT_TRANSLATE_API: &str = "https://libretranslate.com/translate";
 /// Joins every line into one request instead of one per line. A Private Use
 /// Area code point: real lyrics never contain it, so splitting the
 /// translated text back on it is safe.
@@ -165,6 +165,8 @@ struct TranslateRequest<'a> {
     source: &'a str,
     target: &'a str,
     format: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    api_key: Option<&'a str>,
 }
 
 #[derive(Deserialize)]
@@ -173,33 +175,54 @@ struct TranslateResponse {
     translated_text: String,
 }
 
-async fn translate_text(http: &reqwest::Client, text: &str, target_lang: &str) -> Result<String> {
+/// Where and how to reach a LibreTranslate-compatible server: the user's
+/// own self-hosted instance, a paid API key on the official one, or
+/// (if they've set neither) the official instance's URL, which will 400
+/// asking for a key -- surfaced as an error, not a silent no-op.
+#[derive(Clone, Debug, Default)]
+pub struct TranslateConfig {
+    pub api_url: String,
+    pub api_key: Option<String>,
+}
+
+async fn translate_text(
+    http: &reqwest::Client,
+    config: &TranslateConfig,
+    text: &str,
+    target_lang: &str,
+) -> Result<String> {
     let response = http
-        .post(TRANSLATE_API)
+        .post(&config.api_url)
         .json(&TranslateRequest {
             q: text,
             source: "auto",
             target: target_lang,
             format: "text",
+            api_key: config.api_key.as_deref(),
         })
         .send()
         .await
-        .context("LibreTranslate request failed")?
-        .error_for_status()
-        .context("LibreTranslate returned an error")?
+        .context("translation request failed")?;
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        anyhow::bail!("translation server returned {status}: {body}");
+    }
+    let response = response
         .json::<TranslateResponse>()
         .await
-        .context("LibreTranslate response was not the expected shape")?;
+        .context("translation server's response was not the expected shape")?;
     Ok(response.translated_text)
 }
 
 /// Translates every line's text to `target_lang` (ISO 639-1, e.g. `"es"`),
 /// keeping each line's `at_ms`. One request for the whole song when
 /// possible; falls back to one request per line if the joined round-trip
-/// does not come back with the same number of lines (LibreTranslate
-/// sometimes normalises whitespace around the separator).
+/// does not come back with the same number of lines (some LibreTranslate
+/// servers normalise whitespace around the separator).
 pub async fn translate_lines(
     http: &reqwest::Client,
+    config: &TranslateConfig,
     lines: &[Line],
     target_lang: &str,
 ) -> Result<Vec<Line>> {
@@ -211,30 +234,53 @@ pub async fn translate_lines(
         .map(|line| line.text.as_str())
         .collect::<Vec<_>>()
         .join(&LINE_SEPARATOR.to_string());
-    if let Ok(translated) = translate_text(http, &joined, target_lang).await {
-        let parts: Vec<&str> = translated.split(LINE_SEPARATOR).collect();
-        if parts.len() == lines.len() {
-            return Ok(lines
-                .iter()
-                .zip(parts)
-                .map(|(line, text)| Line {
-                    at_ms: line.at_ms,
-                    text: text.trim().to_string(),
-                })
-                .collect());
+    let joined_error = match translate_text(http, config, &joined, target_lang).await {
+        Ok(translated) => {
+            let parts: Vec<&str> = translated.split(LINE_SEPARATOR).collect();
+            if parts.len() == lines.len() {
+                return Ok(lines
+                    .iter()
+                    .zip(parts)
+                    .map(|(line, text)| Line {
+                        at_ms: line.at_ms,
+                        text: text.trim().to_string(),
+                    })
+                    .collect());
+            }
+            anyhow::anyhow!(
+                "translated line count ({}) did not match the original ({})",
+                parts.len(),
+                lines.len()
+            )
         }
+        Err(error) => error,
+    };
+    // A single line has nothing to fall back to per-line for.
+    if lines.len() == 1 {
+        return Err(joined_error);
     }
     let mut translated_lines = Vec::with_capacity(lines.len());
+    let mut any_succeeded = false;
     for line in lines {
-        let text = translate_text(http, &line.text, target_lang)
-            .await
-            .unwrap_or_else(|_| line.text.clone());
-        translated_lines.push(Line {
-            at_ms: line.at_ms,
-            text,
-        });
+        match translate_text(http, config, &line.text, target_lang).await {
+            Ok(text) => {
+                any_succeeded = true;
+                translated_lines.push(Line {
+                    at_ms: line.at_ms,
+                    text,
+                });
+            }
+            Err(_) => translated_lines.push(line.clone()),
+        }
     }
-    Ok(translated_lines)
+    // Every line failing the same way as the joined request means the
+    // server itself is unreachable or misconfigured -- surface that
+    // instead of silently handing back the untranslated lyrics.
+    if any_succeeded {
+        Ok(translated_lines)
+    } else {
+        Err(joined_error)
+    }
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -289,6 +335,7 @@ pub fn store_translation(cache_dir: &Path, query: &Query, target_lang: &str, lin
 /// `target_lang`.
 pub async fn fetch_translation(
     http: &reqwest::Client,
+    config: &TranslateConfig,
     cache_dir: &Path,
     query: &Query,
     lines: &[Line],
@@ -297,7 +344,7 @@ pub async fn fetch_translation(
     if let Some(cached) = cached_translation(cache_dir, query, target_lang) {
         return Ok(cached);
     }
-    let translated = translate_lines(http, lines, target_lang).await?;
+    let translated = translate_lines(http, config, lines, target_lang).await?;
     store_translation(cache_dir, query, target_lang, &translated);
     Ok(translated)
 }

@@ -184,6 +184,14 @@ pub struct Settings {
     /// OS locale ([`crate::lyrics::system_language`]).
     #[serde(default)]
     pub lyrics_translate_language: Option<String>,
+    /// A self-hosted or third-party LibreTranslate-compatible server.
+    /// `None` uses the official instance, which needs an API key below.
+    #[serde(default)]
+    pub lyrics_translate_api_url: Option<String>,
+    /// API key for the translation server above (the official LibreTranslate
+    /// instance requires one; most self-hosted ones do not).
+    #[serde(default)]
+    pub lyrics_translate_api_key: Option<String>,
     pub queue_width: f32,
     /// Use compact single-line rows without cover art in track lists.
     pub tracklist_compact: bool,
@@ -299,6 +307,8 @@ impl Default for Settings {
             lyrics_width: 360.0,
             lyrics_translate_enabled: false,
             lyrics_translate_language: None,
+            lyrics_translate_api_url: None,
+            lyrics_translate_api_key: None,
             queue_width: 360.0,
             tracklist_compact: false,
             search_history: Vec::new(),
