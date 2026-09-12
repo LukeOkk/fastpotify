@@ -136,6 +136,32 @@ pub(crate) fn header(app: &mut App, ui: &mut egui::Ui) {
                     }
                 });
         });
+        match &app.lyrics_translated {
+            Loadable::Loading => {
+                ui.horizontal(|ui| {
+                    theme::spinner(ui, 14.0, palette.accent);
+                    theme::text(ui, "Translating…", theme::regular(12.5), palette.secondary);
+                });
+            }
+            Loadable::Failed(error) => {
+                theme::text(
+                    ui,
+                    format!("Translation failed: {error}"),
+                    theme::regular(12.5),
+                    palette.danger,
+                )
+                .on_hover_text(error);
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new("Set a translation server or API key in Settings.")
+                            .font(theme::regular(12.5))
+                            .color(palette.secondary),
+                    )
+                    .wrap(),
+                );
+            }
+            Loadable::NotLoaded | Loadable::Loaded(_) => {}
+        }
     }
 }
 
@@ -304,4 +330,105 @@ pub(crate) fn contents(app: &mut App, ui: &mut egui::Ui) {
         app.lyrics_following = false;
     }
     app.lyrics_line_shown = Some(active);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn translation_status_is_visible_only_when_enabled() {
+        let root = std::env::temp_dir().join(format!(
+            "fastpotify-lyrics-status-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        let mut app = App::new(
+            &crate::backend::Waker::default(),
+            crate::paths::AppDirs {
+                config: root.join("config"),
+                state: root.join("state"),
+                cache: root.join("cache"),
+            },
+            crate::settings::Settings::default(),
+            crate::app::AppOptions {
+                media_controls: false,
+                restore_sign_in: false,
+                tray: false,
+            },
+        );
+        app.settings.lyrics_translate_language = Some("es".into());
+        let ctx = egui::Context::default();
+        theme::install(&ctx);
+        let error = "HTTP 400: API key required. ".repeat(20);
+        for palette in [theme::Palette::light(), theme::Palette::dark()] {
+            app.palette = palette;
+            theme::apply(&ctx, &palette);
+            for width in [260.0, 460.0] {
+                for enabled in [false, true] {
+                    app.settings.lyrics_translate_enabled = enabled;
+                    for state in [
+                        Loadable::NotLoaded,
+                        Loadable::Loading,
+                        Loadable::Failed(error.clone()),
+                        Loadable::Loaded(Vec::new()),
+                    ] {
+                        app.lyrics_translated = state;
+                        let mut output = ctx.run_ui(
+                            egui::RawInput {
+                                screen_rect: Some(egui::Rect::from_min_size(
+                                    egui::Pos2::ZERO,
+                                    egui::vec2(width, 240.0),
+                                )),
+                                ..Default::default()
+                            },
+                            |ui| header(&mut app, ui),
+                        );
+                        output.textures_delta.clear();
+                        let text: Vec<_> = output
+                            .shapes
+                            .iter()
+                            .filter_map(|shape| match &shape.shape {
+                                egui::Shape::Text(text) => Some(text),
+                                _ => None,
+                            })
+                            .collect();
+                        assert_eq!(
+                            text.iter().any(|text| text.galley.text() == "Translating…"),
+                            enabled && matches!(app.lyrics_translated, Loadable::Loading),
+                        );
+                        let failure = text
+                            .iter()
+                            .find(|text| text.galley.text().starts_with("Translation failed:"));
+                        let failed =
+                            enabled && matches!(app.lyrics_translated, Loadable::Failed(_));
+                        assert_eq!(failure.is_some(), failed);
+                        assert_eq!(
+                            text.iter().any(|text| {
+                                text.galley.text()
+                                    == "Set a translation server or API key in Settings."
+                            }),
+                            failed,
+                        );
+                        if let Some(failure) = failure {
+                            assert_eq!(
+                                failure.galley.text(),
+                                format!("Translation failed: {error}")
+                            );
+                            assert_eq!(failure.galley.rows.len(), 1);
+                            assert!(
+                                failure.galley.size().x <= width,
+                                "status width {} exceeds viewport width {width}",
+                                failure.galley.size().x,
+                            );
+                            assert_eq!(failure.galley.job.sections[0].format.color, palette.danger);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

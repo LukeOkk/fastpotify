@@ -601,7 +601,7 @@ fn sample_lyrics() -> crate::lyrics::Lyrics {
 #[cfg(feature = "demo")]
 pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
     // Default screenshots to the main window regardless of saved settings.
-    app.settings.winamp_window = false;
+    app.settings.mini_player_open = false;
     if let Some(page) = page.and_then(Page::decode) {
         app.open(page);
     }
@@ -683,7 +683,7 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
             }
             // Use the built-in skin for deterministic screenshots.
             "winamp" => {
-                app.settings.winamp_window = true;
+                app.settings.mini_player_open = true;
                 app.settings.skin = None;
             }
             "playlist" => app.settings.playlist_open = true,
@@ -1593,9 +1593,67 @@ mod tests {
     }
 
     #[test]
+    fn settings_offer_one_mini_player_switch() {
+        use egui::accesskit::Role;
+        let (ctx, mut app) = accessible_app("mini-player-setting");
+        app.open(Page::Settings);
+        app.demo_windows_controls = true;
+        let mut render = |events| {
+            app.actions.clear();
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1280.0, 8000.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ui| crate::ui::settings::show(&mut app, ui),
+            );
+            output.textures_delta.clear();
+            (
+                output.platform_output.accesskit_update.unwrap(),
+                app.actions.clone(),
+            )
+        };
+        render(vec![]);
+        let (tree, _) = render(vec![]);
+        assert_eq!(
+            tree.nodes
+                .iter()
+                .filter(|(_, node)| {
+                    node.label() == Some("Switch to it") && node.role() == Role::Button
+                })
+                .count(),
+            1,
+            "Settings must offer exactly one mini player toggle"
+        );
+        assert!(
+            !tree.nodes.iter().any(|(_, node)| {
+                matches!(
+                    node.label(),
+                    Some("Compact bar" | "Winamp skins" | "Show Winamp in taskbar")
+                )
+            })
+        );
+        let control = accessible_node(&tree, "Switch to it", Role::Button);
+        let (_, actions) = render(vec![accessible_action(
+            control,
+            egui::accesskit::Action::Click,
+            None,
+        )]);
+        assert!(matches!(
+            actions.as_slice(),
+            [crate::model::Action::ToggleMiniPlayer]
+        ));
+        app.backend.shutdown();
+    }
+
+    #[test]
     fn the_windows_taskbar_setting_keeps_its_choice_without_closing_settings() {
         use egui::accesskit::Role;
-        let (ctx, mut app) = accessible_app("winamp-taskbar-setting");
+        let (ctx, mut app) = accessible_app("mini-player-taskbar-setting");
         app.open(Page::Settings);
         accessible_frame(&ctx, &mut app, vec![]);
         let tree = accessible_frame(&ctx, &mut app, vec![]);
@@ -1604,7 +1662,7 @@ mod tests {
                 !tree
                     .nodes
                     .iter()
-                    .any(|(_, node)| node.label() == Some("Show Winamp in taskbar"))
+                    .any(|(_, node)| node.label() == Some("Show mini player in taskbar"))
             );
         }
         app.demo_windows_controls = true;
@@ -1612,7 +1670,7 @@ mod tests {
             accessible_frame(&ctx, &mut app, vec![]);
         }
         let tree = accessible_frame(&ctx, &mut app, vec![]);
-        let control = accessible_node(&tree, "Show Winamp in taskbar", Role::CheckBox);
+        let control = accessible_node(&tree, "Show mini player in taskbar", Role::CheckBox);
         accessible_frame(
             &ctx,
             &mut app,
@@ -1623,8 +1681,8 @@ mod tests {
             )],
         );
         assert!(!app.settings.winamp_show_taskbar);
-        assert!(!app.settings.winamp_window && !app.switch_intent);
-        let path = app.dirs.config.join("winamp-taskbar-choice.json");
+        assert!(!app.settings.mini_player_open && !app.switch_intent);
+        let path = app.dirs.config.join("mini-player-taskbar-choice.json");
         app.settings.save(&path);
         app.settings = Settings::load(&path);
         assert!(!app.settings.winamp_show_taskbar);

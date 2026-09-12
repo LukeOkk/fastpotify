@@ -141,7 +141,10 @@ fn clear_button(app: &mut App, ui: &mut egui::Ui) {
     }
 }
 
-fn contents(app: &mut App, ui: &mut egui::Ui, compact: bool) {
+/// The track list itself: now playing, then the manually queued rows, then
+/// the rest of the playing context. Shared by the page, the side panel, and
+/// the compact bar's playlist section.
+pub(crate) fn contents(app: &mut App, ui: &mut egui::Ui, compact: bool) {
     let palette = app.palette;
     match &app.queue {
         Loadable::Loaded(_) => {}
@@ -265,7 +268,9 @@ fn queue_is_empty(app: &App) -> bool {
     app.queue.get().is_none_or(|queue| queue.queue.is_empty())
 }
 
-fn recents_contents(app: &mut App, ui: &mut egui::Ui) {
+/// The Recently played tab's rows. Shared by the side panel and the
+/// compact bar's playlist section.
+pub(crate) fn recents_contents(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
     // Snapshot to avoid borrow issues while drawing. The rows are both
     // histories as one: what was played here, which Spotify is never told

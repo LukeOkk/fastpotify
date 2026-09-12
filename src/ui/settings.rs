@@ -607,20 +607,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         );
     });
 
-    section(ui, &palette, "Compact bar", |ui| {
-        widgets::setting_row(
-            ui,
-            &palette,
-            "Compact bar",
-            "A small, borderless, resizable now-playing bar: cover, title, and transport controls in one row.",
-            |ui| {
-                if theme::pill_button(ui, &palette, "Switch to it", true).clicked() {
-                    app.actions.push(Action::ToggleCompactBarWindow);
-                }
-            },
-        );
-    });
-
     section(ui, &palette, "Lyrics translation", |ui| {
         widgets::setting_row(
             ui,
@@ -752,104 +738,23 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         }
     });
 
-    section(ui, &palette, "Winamp skins", |ui| {
+    section(ui, &palette, "Mini player", |ui| {
         widgets::setting_row(
             ui,
             &palette,
-            "Winamp mini player",
-            super::keys::platform_shortcut(
-                "Use classic Winamp .wsz skins. Press Ctrl+M or click the skin logo to return. Drop a skin on either window to add it.",
-                "Use classic Winamp .wsz skins. Press Cmd+Shift+M or click the skin logo to return. Drop a skin on either window to add it.",
-            ),
+            "Mini player",
+            "A small, resizable now-playing bar with cover, controls, and lyrics.",
             |ui| {
                 if theme::pill_button(ui, &palette, "Switch to it", false).clicked() {
-                    app.actions.push(Action::ToggleWinampWindow);
+                    app.actions.push(Action::ToggleMiniPlayer);
                 }
-            },
-        );
-        let folder = app.dirs.skins_dir();
-        app.winamp.refresh_choices(&folder);
-        widgets::setting_row(
-            ui,
-            &palette,
-            "Skin",
-            &format!(
-                "Installed skins are in {}. Find more at the Winamp Skin Museum.",
-                folder.display()
-            ),
-            |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 6.0;
-                    if theme::soft_button(ui, &palette, Some(Icon::Globe), "Skin Museum", false)
-                        .clicked()
-                    {
-                        app.actions
-                            .push(Action::OpenUrl("https://skins.webamp.org/".into()));
-                    }
-                    if theme::soft_button(
-                        ui,
-                        &palette,
-                        Some(Icon::ExternalLink),
-                        "Open folder",
-                        false,
-                    )
-                    .clicked()
-                    {
-                        app.actions.push(Action::OpenSkinsFolder);
-                    }
-                });
-            },
-        );
-        let choices = app.winamp.choices.clone();
-        let mut options: Vec<(usize, &str)> = vec![(0, "Fastpotify")];
-        options.extend(
-            choices
-                .iter()
-                .enumerate()
-                .map(|(index, choice)| (index + 1, choice.label())),
-        );
-        let current = app
-            .settings
-            .skin
-            .as_deref()
-            .and_then(|name| choices.iter().position(|choice| choice.name == name))
-            .map_or(0, |index| index + 1);
-        if let Some(picked) = widgets::chips(ui, &palette, &options, current)
-            && picked != current
-        {
-            let name = picked
-                .checked_sub(1)
-                .map(|index| choices[index].name.clone());
-            app.actions.push(Action::SetSkin(name));
-        }
-        ui.add_space(4.0);
-        widgets::setting_row(
-            ui,
-            &palette,
-            "Size",
-            "Whole-number scaling keeps skin pixels sharp.",
-            |ui| {
-                let scale =
-                    crate::winamp::WinampState::scale(&app.settings, ui.ctx().pixels_per_point());
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 6.0;
-                    for candidate in 1..=crate::winamp::MAX_SCALE {
-                        let label = format!("{candidate}x");
-                        if theme::soft_button(ui, &palette, None, &label, candidate == scale)
-                            .clicked()
-                            && candidate != scale
-                        {
-                            app.actions.push(Action::SetSkinScale(candidate as u8));
-                        }
-                    }
-                });
             },
         );
         widgets::setting_row(
             ui,
             &palette,
             "Always on top",
-            "Keep the Winamp window above everything else.",
+            "Keep the mini player above everything else.",
             |ui| {
                 let mut on_top = app.settings.winamp_on_top;
                 if widgets::switch(ui, &palette, "Always on top", &mut on_top).changed() {
@@ -866,13 +771,13 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 |ui| {
                     let mut visible = app.settings.winamp_show_taskbar;
                     let response =
-                        widgets::switch(ui, &palette, "Show Winamp in taskbar", &mut visible);
+                        widgets::switch(ui, &palette, "Show mini player in taskbar", &mut visible);
                     if response.changed() {
                         app.actions.push(Action::SetWinampTaskbar(visible));
                     }
                     #[cfg(any(test, feature = "demo"))]
                     if app.demo_windows_controls {
-                        let id = egui::Id::new("demo-winamp-taskbar-focus");
+                        let id = egui::Id::new("demo-mini-player-taskbar-focus");
                         if !ui.data(|data| data.get_temp::<bool>(id)).unwrap_or(false) {
                             response.scroll_to_me(Some(Align::Center));
                             ui.data_mut(|data| data.insert_temp(id, true));

@@ -11,7 +11,7 @@ pub(super) const fn platform_shortcut<'a>(ctrl: &'a str, cmd: &'a str) -> &'a st
 
 pub(super) const SIDEBAR_SHORTCUT: &str = platform_shortcut("Ctrl+B", "Cmd+B");
 pub(super) const QUIT_SHORTCUT: &str = platform_shortcut("Ctrl+Q", "Cmd+Q");
-pub(super) const WINAMP_SHORTCUT: &str = platform_shortcut("Ctrl+M", "Cmd+Shift+M");
+pub(super) const MINI_PLAYER_SHORTCUT: &str = platform_shortcut("Ctrl+M", "Cmd+Shift+M");
 pub(super) const MILKDROP_SHORTCUT: &str = platform_shortcut("Ctrl+Shift+K", "Cmd+Shift+K");
 
 pub fn handle(app: &mut App, ctx: &egui::Context) {
@@ -43,17 +43,15 @@ pub fn handle(app: &mut App, ctx: &egui::Context) {
             key(Modifiers::COMMAND, Key::H, Action::Open(Page::Home));
         }
         key(Modifiers::COMMAND, Key::L, Action::Open(Page::LikedSongs));
-        // Cmd+M minimises on macOS. The compact bar is now the mini player
-        // this shortcut opens; the Winamp skin stays reachable from
-        // Settings > Winamp skins for whoever still wants it.
+        // Cmd+M minimises on macOS, so the mini player uses Cmd+Shift+M.
         if cfg!(target_os = "macos") {
             key(
                 Modifiers::COMMAND | Modifiers::SHIFT,
                 Key::M,
-                Action::ToggleCompactBarWindow,
+                Action::ToggleMiniPlayer,
             );
         } else {
-            key(Modifiers::COMMAND, Key::M, Action::ToggleCompactBarWindow);
+            key(Modifiers::COMMAND, Key::M, Action::ToggleMiniPlayer);
         }
         // Winamp's key for starting and stopping the visualisation plug-in.
         key(
@@ -195,7 +193,7 @@ pub const SHORTCUTS: &[(&str, &str)] = &[
         platform_shortcut("Ctrl+Shift+B", "Cmd+Shift+B"),
         "Go to the playing album",
     ),
-    (WINAMP_SHORTCUT, "Mini player"),
+    (MINI_PLAYER_SHORTCUT, "Mini player"),
     (MILKDROP_SHORTCUT, "MilkDrop, under the mini player"),
     ("F  or  double-click", "MilkDrop: fill the screen"),
     ("→  /  N", "MilkDrop: next preset"),
@@ -229,7 +227,7 @@ mod tests {
             [
                 SIDEBAR_SHORTCUT,
                 QUIT_SHORTCUT,
-                WINAMP_SHORTCUT,
+                MINI_PLAYER_SHORTCUT,
                 MILKDROP_SHORTCUT,
             ],
             expected

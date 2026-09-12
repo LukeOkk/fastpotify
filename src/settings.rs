@@ -223,16 +223,11 @@ pub struct Settings {
     pub library_sort: std::collections::BTreeMap<LibraryShelf, LibrarySort>,
     /// Interface zoom, egui's zoom factor; Ctrl+plus/minus changes it.
     pub zoom: f32,
-    /// The Winamp window is open.
-    pub winamp_window: bool,
-    /// A small, borderless, resizable "compact bar" window is open: cover,
-    /// title/artist, and transport controls in one row. A simpler
-    /// alternative to the Winamp skin, not the same window.
-    #[serde(default)]
-    pub compact_bar_window: bool,
-    /// The compact bar's last size, in logical pixels.
-    #[serde(default = "default_compact_bar_size")]
-    pub compact_bar_size: [f32; 2],
+    /// The small, borderless, resizable mini player window is open.
+    pub mini_player_open: bool,
+    /// The mini player's last size, in logical pixels.
+    #[serde(default = "default_mini_player_size")]
+    pub mini_player_size: [f32; 2],
     /// Windows: keep a taskbar button while the Winamp window is visible.
     pub winamp_show_taskbar: bool,
     /// Skin file or folder name. `None` selects the built-in skin.
@@ -324,9 +319,8 @@ impl Default for Settings {
             sidebar_order: Vec::new(),
             library_sort: std::collections::BTreeMap::new(),
             zoom: 1.0,
-            winamp_window: false,
-            compact_bar_window: false,
-            compact_bar_size: default_compact_bar_size(),
+            mini_player_open: false,
+            mini_player_size: default_mini_player_size(),
             winamp_show_taskbar: true,
             skin: None,
             skin_scale: None,
@@ -358,8 +352,8 @@ fn default_buffer_ms() -> u32 {
     crate::sink::DEFAULT_BUFFER_MS
 }
 
-fn default_compact_bar_size() -> [f32; 2] {
-    [420.0, 72.0]
+fn default_mini_player_size() -> [f32; 2] {
+    [460.0, 72.0]
 }
 
 impl Settings {
@@ -447,9 +441,10 @@ mod tests {
     }
 
     #[test]
-    fn older_settings_keep_the_winamp_window_closed_and_the_built_in_skin() {
+    fn older_settings_keep_the_mini_player_closed_and_the_built_in_skin() {
         let settings: Settings = serde_json::from_str(r#"{"zoom": 1.2}"#).unwrap();
-        assert!(!settings.winamp_window);
+        assert!(!settings.mini_player_open);
+        assert_eq!(settings.mini_player_size, [460.0, 72.0]);
         assert!(settings.winamp_show_taskbar);
         assert_eq!(settings.skin, None);
         assert_eq!(settings.skin_scale, None);
@@ -479,7 +474,8 @@ mod tests {
     #[test]
     fn a_chosen_skin_round_trips() {
         let settings = Settings {
-            winamp_window: true,
+            mini_player_open: true,
+            mini_player_size: [640.0, 80.0],
             skin: Some("Zaxon.wsz".into()),
             skin_scale: Some(3),
             ..Settings::default()

@@ -18,6 +18,8 @@ pub mod sidebar;
 pub mod topbar;
 pub mod widgets;
 pub mod compact_bar;
+pub mod equalizer_window;
+pub mod playlist_window;
 pub mod winamp;
 
 use egui::{Align2, Color32, CornerRadius, Frame, Margin, Rect, Stroke, vec2};

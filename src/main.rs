@@ -574,18 +574,9 @@ fn log_panics(path: std::path::PathBuf) {
     }));
 }
 
-/// Which small window is open: the pixel-skinned, fixed-size Winamp player,
-/// or the plain, resizable compact bar.
-enum MiniKind {
-    Winamp,
-    CompactBar,
-}
-
-/// A small secondary window, when that is the window to open: either the
-/// Winamp mini player or the compact bar.
+/// The small, resizable mini player, when that is the window to open.
 struct MiniWindow {
-    kind: MiniKind,
-    /// A first size; the window corrects it once it knows the display.
+    /// The mini player's remembered size.
     size: egui::Vec2,
     position: Option<[f32; 2]>,
     on_top: bool,
@@ -595,20 +586,9 @@ struct MiniWindow {
 
 impl MiniWindow {
     fn wanted(app: &app::App) -> Option<Self> {
-        if app.settings.winamp_window {
+        if app.settings.mini_player_open && !app.mini_player_suspended {
             return Some(Self {
-                kind: MiniKind::Winamp,
-                size: fastpotify::ui::winamp::initial_size(&app.settings),
-                position: app.winamp.restore_pos,
-                on_top: app.settings.winamp_on_top,
-                taskbar: app.settings.winamp_show_taskbar,
-                storage_path: app.dirs.cache.join("winamp.ron"),
-            });
-        }
-        if app.settings.compact_bar_window && !app.compact_bar_suspended {
-            return Some(Self {
-                kind: MiniKind::CompactBar,
-                size: app.settings.compact_bar_size.into(),
+                size: app.settings.mini_player_size.into(),
                 position: None,
                 on_top: false,
                 taskbar: true,
@@ -647,7 +627,7 @@ fn native_options(
     mini: Option<MiniWindow>,
     inner_size: Option<[f32; 2]>,
 ) -> eframe::NativeOptions {
-    // The app keeps the mini player's position and shaded size separately.
+    // The app keeps the mini player's size separately.
     // Its closing window must not replace the main window's eframe geometry.
     let persist_window = mini.is_none();
     // Disabling saving does not disable eframe's startup restore. Give the
@@ -670,28 +650,13 @@ fn native_options(
     let viewport = match mini {
         Some(mini) => {
             let level = app::on_top_window_level(mini.on_top);
-            let viewport = match mini.kind {
-                // See-through, for skins that are not rectangles; the skin
-                // paints every pixel that is the window. MilkDrop runs in
-                // its own process, so nothing else shares this window's
-                // surface. Fixed size: skin bitmaps are pixel-exact.
-                MiniKind::Winamp => viewport
-                    .with_decorations(false)
-                    .with_transparent(true)
-                    .with_resizable(false)
-                    .with_maximize_button(false)
-                    .with_inner_size(mini.size)
-                    .with_min_inner_size(mini.size)
-                    .with_max_inner_size(mini.size),
-                // A plain egui layout, so it can actually resize.
-                MiniKind::CompactBar => viewport
-                    .with_decorations(false)
-                    .with_transparent(false)
-                    .with_resizable(true)
-                    .with_maximize_button(false)
-                    .with_inner_size(mini.size)
-                    .with_min_inner_size([260.0, 56.0]),
-            };
+            let viewport = viewport
+                .with_decorations(false)
+                .with_transparent(false)
+                .with_resizable(true)
+                .with_maximize_button(false)
+                .with_inner_size(mini.size)
+                .with_min_inner_size([260.0, 56.0]);
             let viewport = viewport.with_window_level(level);
             // egui applies this native attribute on Windows only.
             let viewport = viewport.with_taskbar(mini.taskbar);
@@ -744,22 +709,18 @@ mod native_window_tests {
     #[test]
     fn only_the_main_window_persists_framework_geometry() {
         assert!(native_options(false, None, None).persist_window);
-        for shaded in [false, true] {
-            let settings = settings::Settings {
-                winamp_shaded: shaded,
-                skin_scale: Some(2),
-                ..Default::default()
-            };
-            let size = fastpotify::ui::winamp::initial_size(&settings);
+        for size in [
+            settings::Settings::default().mini_player_size.into(),
+            egui::vec2(640.0, 80.0),
+        ] {
             let options = native_options(
                 false,
                 Some(MiniWindow {
-                    kind: MiniKind::Winamp,
                     size,
-                    position: Some([300.0, 200.0]),
+                    position: None,
                     on_top: false,
                     taskbar: true,
-                    storage_path: std::path::PathBuf::from("cache/winamp.ron"),
+                    storage_path: std::path::PathBuf::from("cache/compact-bar.ron"),
                 }),
                 None,
             );
@@ -768,7 +729,20 @@ mod native_window_tests {
                 "mini geometry must not overwrite main"
             );
             assert_eq!(options.viewport.inner_size, Some(size));
-            assert_eq!(options.viewport.position, Some(egui::pos2(300.0, 200.0)));
+            assert_eq!(options.viewport.position, None);
+            assert_eq!(
+                options.viewport.min_inner_size,
+                Some(egui::vec2(260.0, 56.0))
+            );
+            assert_eq!(options.viewport.max_inner_size, None);
+            assert_eq!(options.viewport.decorations, Some(false));
+            assert_eq!(options.viewport.transparent, Some(false));
+            assert_eq!(options.viewport.resizable, Some(true));
+            assert_eq!(options.viewport.taskbar, Some(true));
+            assert_eq!(
+                options.viewport.window_level,
+                Some(egui::WindowLevel::Normal)
+            );
             assert!(options.persistence_path.is_some());
         }
     }
@@ -786,17 +760,16 @@ mod native_window_tests {
     fn hiding_the_mini_taskbar_button_never_hides_the_main_window_button() {
         for taskbar in [false, true] {
             let mini = MiniWindow {
-                kind: MiniKind::Winamp,
-                size: egui::vec2(550.0, 232.0),
+                size: egui::vec2(460.0, 72.0),
                 position: Some([123.0, 456.0]),
                 on_top: true,
                 taskbar,
-                storage_path: "cache/winamp.ron".into(),
+                storage_path: "cache/compact-bar.ron".into(),
             };
             let options = native_options(false, Some(mini), None);
             assert_eq!(options.viewport.taskbar, Some(taskbar));
             assert_eq!(options.viewport.position, Some(egui::pos2(123.0, 456.0)));
-            assert_eq!(options.viewport.inner_size, Some(egui::vec2(550.0, 232.0)));
+            assert_eq!(options.viewport.inner_size, Some(egui::vec2(460.0, 72.0)));
             assert_eq!(
                 options.viewport.window_level,
                 Some(egui::WindowLevel::AlwaysOnTop)
@@ -993,18 +966,9 @@ impl eframe::App for Shell {
         }
     }
 
-    /// The mini player's window is see-through where the skin leaves it
-    /// out; the big window paints itself over eframe's own ground.
+    /// Both window layouts paint themselves over eframe's own ground.
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        if self
-            .app
-            .as_ref()
-            .is_some_and(|app| app.settings.winamp_window)
-        {
-            [0.0; 4]
-        } else {
-            egui::Color32::from_rgba_unmultiplied(12, 12, 12, 180).to_normalized_gamma_f32()
-        }
+        egui::Color32::from_rgba_unmultiplied(12, 12, 12, 180).to_normalized_gamma_f32()
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {

@@ -183,14 +183,12 @@ pub struct App {
     /// The outer loop should recreate the hidden window.
     pub wants_show: bool,
     /// The window should close and reopen at once as the other kind: the
-    /// big window or the Winamp mini player.
+    /// big window or the mini player.
     pub switch_intent: bool,
-    /// The compact bar is bounced to the main window because sign-in is
-    /// required. In-memory only: unlike `ToggleCompactBarWindow`, this must
-    /// never persist to `Settings::compact_bar_window`, or a transient
-    /// sign-in hiccup (an expired token, a keychain prompt) would silently
-    /// turn the compact bar off for good the next time the app opens.
-    pub compact_bar_suspended: bool,
+    /// The mini player is suspended while sign-in needs the main window.
+    /// In-memory only: a transient sign-in failure must never change the
+    /// saved `Settings::mini_player_open` preference.
+    pub mini_player_suspended: bool,
     /// Commands from control clients (a second `fastpotify <verb>` launch,
     /// a Raycast script), on the platforms where they do not arrive through
     /// MPRIS. Drained every frame.
@@ -305,6 +303,10 @@ pub struct App {
     pub dialog: Option<Dialog>,
     pub show_queue_panel: bool,
     pub show_lyrics_panel: bool,
+    /// The compact bar's own equalizer section, expanded under the details row.
+    pub show_equalizer_window: bool,
+    /// The compact bar's own playlist section, expanded under the details row.
+    pub show_playlist_window: bool,
     /// The track the lyrics below are for.
     pub lyrics_uri: Option<String>,
     /// `Loaded(None)` when no lyrics are available.
@@ -534,7 +536,7 @@ impl App {
             hide_intent: false,
             wants_show: false,
             switch_intent: false,
-            compact_bar_suspended: false,
+            mini_player_suspended: false,
             control_commands: None,
             control_now_playing: None,
             control_devices: None,
@@ -619,6 +621,8 @@ impl App {
             dialog: None,
             show_queue_panel: session.queue_open.unwrap_or(false),
             show_lyrics_panel: false,
+            show_equalizer_window: false,
+            show_playlist_window: false,
             lyrics_uri: None,
             lyrics: Loadable::NotLoaded,
             lyrics_following: true,
@@ -729,19 +733,12 @@ impl App {
         if let Some(tray) = &mut self.tray {
             tray.attach();
         }
-        if self.settings.winamp_window {
+        if self.settings.mini_player_open && !self.mini_player_suspended {
             // The mini player sizes itself; the big window's geometry
             // waits here for its return. eframe may have restored the big
             // window's fullscreen/maximized state before creating this one.
             ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(false));
-            if let Some(pos) = self.winamp.restore_pos
-                && crate::window::can_restore(pos, ctx.pixels_per_point())
-            {
-                ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(
-                    pos[0], pos[1],
-                )));
-            }
             // Re-assert the on-top level over the
             // first frames, once the window is mapped, because the level set
             // at creation does not stick on X11.
@@ -2000,7 +1997,7 @@ impl App {
         }
         if matches!(self.page(), Page::Queue)
             || self.show_queue_panel
-            || (self.settings.winamp_window && self.settings.playlist_open)
+            || (self.settings.mini_player_open && self.settings.playlist_open)
         {
             self.refresh_queue(true);
         }
@@ -2104,11 +2101,12 @@ impl App {
             })));
     }
 
-    /// Pushes the Winamp window's always-on-top level to the live window.
+    /// Pushes the mini player's always-on-top level to the live window.
     fn push_winamp_level(&self, ctx: &egui::Context) {
-        if let Some(level) =
-            winamp_on_top_level(self.settings.winamp_window, self.settings.winamp_on_top)
-        {
+        if let Some(level) = winamp_on_top_level(
+            self.settings.mini_player_open && !self.mini_player_suspended,
+            self.settings.winamp_on_top,
+        ) {
             ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(level));
         }
     }
@@ -2178,7 +2176,7 @@ impl App {
             {
                 self.refresh_devices();
             }
-            let playlist_open = self.settings.winamp_window && self.settings.playlist_open;
+            let playlist_open = self.settings.mini_player_open && self.settings.playlist_open;
             if (self.show_queue_panel || matches!(self.page(), Page::Queue) || playlist_open)
                 && !self.queue.is_loading()
                 && self
@@ -2237,7 +2235,7 @@ impl App {
     /// Loads and applies the skin selected in settings.
     /// On failure, restores the active skin setting to avoid repeated retries.
     fn sync_skin(&mut self, ctx: &egui::Context) {
-        if self.settings.winamp_window
+        if self.settings.mini_player_open
             && !self.winamp.is_loading()
             && self.winamp.worn != self.settings.skin
         {
@@ -6337,6 +6335,15 @@ impl App {
                     self.request_lyrics();
                 }
             }
+            Action::ToggleEqualizerWindow => {
+                self.show_equalizer_window = !self.show_equalizer_window;
+            }
+            Action::TogglePlaylistWindow => {
+                self.show_playlist_window = !self.show_playlist_window;
+                if self.show_playlist_window {
+                    self.refresh_queue(true);
+                }
+            }
             Action::ToggleDevicesPopup => {
                 self.show_devices = !self.show_devices;
                 if self.show_devices {
@@ -6472,29 +6479,12 @@ impl App {
                 }
                 Err(error) => self.toast_error(format!("Couldn't clear artwork: {error}")),
             },
-            Action::ToggleWinampWindow => {
+            Action::ToggleMiniPlayer => {
                 // One window at a time: this one closes and the loop in
-                // `main` opens the other kind where each was last.
-                if self.settings.winamp_window {
-                    self.winamp.remember_position();
-                }
+                // `main` opens the other layout, preserving the main geometry.
                 self.session_window_size = self.last_window_size.or(self.session_window_size);
                 self.session_window_pos = self.last_window_pos.or(self.session_window_pos);
-                self.settings.winamp_window = !self.settings.winamp_window;
-                if self.settings.winamp_window {
-                    self.settings.compact_bar_window = false;
-                }
-                self.settings_dirty = true;
-                self.switch_intent = true;
-                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-            }
-            Action::ToggleCompactBarWindow => {
-                self.session_window_size = self.last_window_size.or(self.session_window_size);
-                self.session_window_pos = self.last_window_pos.or(self.session_window_pos);
-                self.settings.compact_bar_window = !self.settings.compact_bar_window;
-                if self.settings.compact_bar_window {
-                    self.settings.winamp_window = false;
-                }
+                self.settings.mini_player_open = !self.settings.mini_player_open;
                 self.settings_dirty = true;
                 self.switch_intent = true;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -6521,7 +6511,7 @@ impl App {
                 if self.settings.winamp_show_taskbar != visible {
                     self.settings.winamp_show_taskbar = visible;
                     self.mark_settings_dirty();
-                    if self.settings.winamp_window {
+                    if self.settings.mini_player_open {
                         // This window attribute is fixed at creation. Keep
                         // the visible mini player, its position, and playback
                         // while replacing only its native window.
@@ -6701,7 +6691,7 @@ impl App {
             || self.user.as_ref().and_then(|user| user.product.as_deref()) != Some("premium")
             || self.dialog.is_some()
             || self.show_devices
-            || self.settings.winamp_window
+            || self.settings.mini_player_open
             || self.page() == &Page::Settings
         {
             return;
@@ -6901,27 +6891,18 @@ impl App {
         let needs_sign_in = !(self.is_connected() && self.user.is_some())
             && !matches!(self.auth, AuthStatus::Connecting | AuthStatus::Starting)
             && !(self.is_connected() && self.user.is_none());
-        if self.settings.winamp_window && needs_sign_in && !self.switch_intent {
-            self.actions.push(Action::ToggleWinampWindow);
-        }
-        // The compact bar itself has no room for a sign-in flow, so bounce
-        // to the main window while it's needed -- but only in memory.
-        // Flipping `settings.compact_bar_window` here (as the Winamp branch
-        // above does with its own toggle) would persist through a merely
-        // transient sign-in hiccup (an expired token, a slow keychain
-        // prompt) and silently turn the compact bar off for good.
-        if self.settings.compact_bar_window && needs_sign_in && !self.compact_bar_suspended {
-            self.compact_bar_suspended = true;
+        // The mini player has no room for sign-in. Suspend it only in
+        // memory so a transient failure never changes the saved preference.
+        if self.settings.mini_player_open && needs_sign_in && !self.mini_player_suspended {
+            self.mini_player_suspended = true;
             self.switch_intent = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-        } else if self.compact_bar_suspended && !needs_sign_in {
-            self.compact_bar_suspended = false;
+        } else if self.mini_player_suspended && !needs_sign_in {
+            self.mini_player_suspended = false;
             self.switch_intent = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
-        if self.settings.winamp_window {
-            crate::ui::winamp::show(self, ui);
-        } else if self.settings.compact_bar_window && !self.compact_bar_suspended {
+        if self.settings.mini_player_open && !self.mini_player_suspended {
             crate::ui::compact_bar::show(self, ui);
         } else {
             crate::ui::show(self, ui);
@@ -6930,8 +6911,7 @@ impl App {
         self.refresh_frame_now();
         self.sync_media_controls(ctx);
 
-        if !self.settings.winamp_window && !self.settings.compact_bar_window && !self.switch_intent
-        {
+        if (!self.settings.mini_player_open || self.mini_player_suspended) && !self.switch_intent {
             if let Some(rect) = ctx.input(|input| input.viewport().inner_rect) {
                 self.last_window_size = Some([rect.width(), rect.height()]);
             }
@@ -7389,8 +7369,8 @@ pub fn on_top_window_level(on_top: bool) -> egui::WindowLevel {
 /// Winamp window to change. The big window (where Settings lives) keeps its
 /// normal level, so toggling the setting there only takes effect once the
 /// Winamp window opens.
-fn winamp_on_top_level(winamp_window: bool, on_top: bool) -> Option<egui::WindowLevel> {
-    winamp_window.then_some(on_top_window_level(on_top))
+fn winamp_on_top_level(mini_player_open: bool, on_top: bool) -> Option<egui::WindowLevel> {
+    mini_player_open.then_some(on_top_window_level(on_top))
 }
 
 fn page_related_needs_load(pages: &HashMap<String, ArtistPage>, id: &str) -> bool {
@@ -7714,7 +7694,7 @@ mod tests {
     /// Toggling always-on-top pushes the matching level to the live Winamp
     /// window, so the change takes effect without recreating the window.
     #[test]
-    fn the_winamp_window_follows_the_on_top_toggle_live() {
+    fn the_mini_player_follows_the_on_top_toggle_live() {
         assert_eq!(
             winamp_on_top_level(true, true),
             Some(egui::WindowLevel::AlwaysOnTop)
@@ -7736,10 +7716,10 @@ mod tests {
     /// The level set at window creation does not stick on X11, so opening the
     /// Winamp window with always-on-top saved must schedule a re-assert.
     #[test]
-    fn opening_the_winamp_window_on_top_schedules_a_reassert() {
+    fn opening_the_mini_player_on_top_schedules_a_reassert() {
         let ctx = egui::Context::default();
         let mut app = headless_app();
-        app.settings.winamp_window = true;
+        app.settings.mini_player_open = true;
         app.settings.winamp_on_top = true;
         app.attach(&ctx);
         assert_eq!(app.winamp_level_reassert, 3);
@@ -7747,41 +7727,41 @@ mod tests {
 
     /// Opening the Winamp window without always-on-top re-asserts nothing.
     #[test]
-    fn opening_the_winamp_window_without_on_top_schedules_no_reassert() {
+    fn opening_the_mini_player_without_on_top_schedules_no_reassert() {
         let ctx = egui::Context::default();
         let mut app = headless_app();
-        app.settings.winamp_window = true;
+        app.settings.mini_player_open = true;
         app.settings.winamp_on_top = false;
         app.attach(&ctx);
         assert_eq!(app.winamp_level_reassert, 0);
     }
 
     #[test]
-    fn returning_to_the_mini_player_restores_its_position_and_shade() {
+    fn returning_to_the_mini_player_leaves_skin_geometry_unused() {
         let mut app = headless_app();
-        app.settings.winamp_window = true;
+        app.settings.mini_player_open = true;
         app.settings.winamp_shaded = true;
-        app.winamp.last_pos = Some([300.0, 200.0]);
+        app.winamp.restore_pos = Some([300.0, 200.0]);
         app.last_window_size = Some([1024.0, 768.0]);
         app.last_window_pos = Some([100.0, 100.0]);
 
         let main_ctx = egui::Context::default();
-        app.apply(Action::ToggleWinampWindow, &main_ctx);
+        app.apply(Action::ToggleMiniPlayer, &main_ctx);
         app.attach(&main_ctx);
-        app.apply(Action::ToggleWinampWindow, &main_ctx);
+        app.apply(Action::ToggleMiniPlayer, &main_ctx);
 
         let mini_ctx = egui::Context::default();
         let mut output = mini_ctx.run_ui(Default::default(), |_ui| app.attach(&mini_ctx));
         output.textures_delta.clear();
         let commands = &output.viewport_output[&egui::ViewportId::ROOT].commands;
-        assert!(app.settings.winamp_window);
+        assert!(app.settings.mini_player_open);
         assert!(app.settings.winamp_shaded);
         assert!(commands.contains(&egui::ViewportCommand::Fullscreen(false)));
         assert!(commands.contains(&egui::ViewportCommand::Maximized(false)));
         assert!(
-            commands.contains(&egui::ViewportCommand::OuterPosition(egui::pos2(
-                300.0, 200.0
-            )))
+            !commands
+                .iter()
+                .any(|command| matches!(command, egui::ViewportCommand::OuterPosition(_)))
         );
         assert_eq!(app.session_window_size, Some([1024.0, 768.0]));
         assert_eq!(app.session_window_pos, Some([100.0, 100.0]));
@@ -9245,10 +9225,10 @@ mod tests {
         app.maybe_suggest_personal_app();
         assert!(app.dialog.is_none());
         app.show_devices = false;
-        app.settings.winamp_window = true;
+        app.settings.mini_player_open = true;
         app.maybe_suggest_personal_app();
         assert!(app.dialog.is_none());
-        app.settings.winamp_window = false;
+        app.settings.mini_player_open = false;
         app.open(Page::Settings);
         app.maybe_suggest_personal_app();
         assert!(app.dialog.is_none());
@@ -9790,7 +9770,7 @@ mod tests {
         app.apply(Action::SetWinampTaskbar(false), &ctx);
         assert!(!app.settings.winamp_show_taskbar);
         assert!(!app.switch_intent, "settings do not close the main window");
-        app.settings.winamp_window = true;
+        app.settings.mini_player_open = true;
         app.local.track = Some(crate::player::LocalTrack {
             uri: "spotify:track:continues".into(),
             ..Default::default()
@@ -9800,7 +9780,7 @@ mod tests {
             app.apply(Action::SetWinampTaskbar(true), &ctx);
         });
         output.textures_delta.clear();
-        assert!(app.settings.winamp_window && app.switch_intent);
+        assert!(app.settings.mini_player_open && app.switch_intent);
         assert!(!app.hide_intent && !app.quit_requested);
         assert!(
             output.viewport_output[&egui::ViewportId::ROOT]
@@ -9825,9 +9805,9 @@ mod tests {
                 .iter()
                 .any(|command| matches!(command, egui::ViewportCommand::Close))
         );
-        app.apply(Action::ToggleWinampWindow, &ctx);
+        app.apply(Action::ToggleMiniPlayer, &ctx);
         assert!(
-            !app.settings.winamp_window,
+            !app.settings.mini_player_open,
             "returning to the main interface remains available"
         );
         app.backend.shutdown();
@@ -11732,7 +11712,7 @@ mod tests {
     #[test]
     fn a_skin_read_late_does_not_override_a_newer_choice() {
         let mut app = headless_app();
-        app.settings.winamp_window = true;
+        app.settings.mini_player_open = true;
         app.settings.skin = Some("B.wsz".into());
         app.skin_loaded(crate::winamp::Loaded {
             name: "A.wsz".into(),
@@ -11746,7 +11726,7 @@ mod tests {
     #[test]
     fn a_dropped_skin_becomes_the_choice_and_a_failed_one_is_forgotten() {
         let mut app = headless_app();
-        app.settings.winamp_window = true;
+        app.settings.mini_player_open = true;
         app.skin_loaded(crate::winamp::Loaded {
             name: "Dropped.wsz".into(),
             result: Ok(some_skin("Dropped")),
@@ -12021,31 +12001,118 @@ mod tests {
         let _ = std::fs::remove_dir_all(root);
     }
 
-    /// Switching from Winamp back to the main window preserves the main
+    #[test]
+    fn sign_in_suspends_and_restores_the_mini_player_without_changing_settings() {
+        let mut app = headless_app();
+        app.settings.mini_player_open = true;
+        app.auth = AuthStatus::SignedOut;
+        app.settings_dirty = false;
+        let ctx = egui::Context::default();
+        app.attach(&ctx);
+
+        let mut output = ctx.run_ui(Default::default(), |ui| app.frame_ui(ui));
+        output.textures_delta.clear();
+        assert!(app.mini_player_suspended && app.switch_intent);
+        assert!(app.settings.mini_player_open);
+        assert!(
+            !app.settings_dirty,
+            "sign-in must not persist a mode change"
+        );
+        assert!(
+            output.viewport_output[&egui::ViewportId::ROOT]
+                .commands
+                .contains(&egui::ViewportCommand::Close)
+        );
+
+        app.attach(&ctx);
+        let mut output = ctx.run_ui(Default::default(), |ui| app.frame_ui(ui));
+        output.textures_delta.clear();
+        assert!(app.mini_player_suspended);
+        assert!(!app.switch_intent, "sign-in stays in the main window");
+        assert!(!app.settings_dirty);
+
+        app.auth = AuthStatus::Connected {
+            username: "listener".into(),
+        };
+        app.user = Some(User {
+            id: "listener".into(),
+            ..Default::default()
+        });
+        let saved_size = app.settings.mini_player_size;
+        let mut input = egui::RawInput::default();
+        input
+            .viewports
+            .get_mut(&egui::ViewportId::ROOT)
+            .unwrap()
+            .inner_rect = Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1240.0, 800.0),
+        ));
+        let mut output = ctx.run_ui(input, |ui| app.frame_ui(ui));
+        output.textures_delta.clear();
+        assert!(!app.mini_player_suspended && app.switch_intent);
+        assert!(app.settings.mini_player_open);
+        assert!(!app.settings_dirty, "resuming must preserve the saved mode");
+        assert_eq!(
+            app.settings.mini_player_size, saved_size,
+            "the outgoing main window must not overwrite the mini player's size"
+        );
+        assert!(
+            output.viewport_output[&egui::ViewportId::ROOT]
+                .commands
+                .contains(&egui::ViewportCommand::Close)
+        );
+    }
+
+    #[test]
+    fn a_suspended_mini_player_attaches_with_main_window_geometry_and_level() {
+        let mut app = headless_app();
+        app.settings.mini_player_open = true;
+        app.settings.winamp_on_top = true;
+        app.mini_player_suspended = true;
+        app.session_window_size = Some([1024.0, 768.0]);
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(Default::default(), |_ui| {
+            app.attach(&ctx);
+            app.push_winamp_level(&ctx);
+        });
+        output.textures_delta.clear();
+        let commands = &output.viewport_output[&egui::ViewportId::ROOT].commands;
+        assert!(commands.contains(&egui::ViewportCommand::InnerSize(egui::vec2(1024.0, 768.0))));
+        assert!(
+            !commands
+                .iter()
+                .any(|command| matches!(command, egui::ViewportCommand::WindowLevel(_)))
+        );
+        assert_eq!(app.winamp_level_reassert, 0);
+        assert!(app.settings.mini_player_open && app.mini_player_suspended);
+    }
+
+    /// Switching from the mini player back to the main window preserves the main
     /// window's size and position across the closing mini-window frame.
     #[test]
-    fn closing_winamp_frame_does_not_overwrite_main_window_geometry() {
+    fn closing_mini_player_frame_does_not_overwrite_main_window_geometry() {
         let mut app = headless_app();
         app.last_window_size = Some([1024.0, 768.0]);
         app.last_window_pos = Some([100.0, 150.0]);
 
-        // Toggle from main window to Winamp window
+        // Toggle from main window to mini player
         let ctx = egui::Context::default();
-        app.actions.push(Action::ToggleWinampWindow);
+        app.actions.push(Action::ToggleMiniPlayer);
         app.apply_actions(&ctx);
 
-        assert!(app.settings.winamp_window);
+        assert!(app.settings.mini_player_open);
         assert!(app.switch_intent);
         assert_eq!(app.session_window_size, Some([1024.0, 768.0]));
         assert_eq!(app.session_window_pos, Some([100.0, 150.0]));
 
-        // Attach the Winamp window (clears switch_intent, keeps session geometry)
+        // Attach the mini player (clears switch_intent, keeps session geometry)
         app.attach(&ctx);
         assert!(!app.switch_intent);
         assert_eq!(app.session_window_size, Some([1024.0, 768.0]));
 
         // Trigger switch back to the main window
-        app.actions.push(Action::ToggleWinampWindow);
+        app.actions.push(Action::ToggleMiniPlayer);
 
         // Run the closing frame of the mini-window with its tiny viewport geometry
         let mut raw_input = egui::RawInput::default();
@@ -12063,7 +12130,7 @@ mod tests {
         closing_output.textures_delta.clear();
 
         // The closing frame switched window mode and armed switch_intent...
-        assert!(!app.settings.winamp_window);
+        assert!(!app.settings.mini_player_open);
         assert!(app.switch_intent);
 
         // ...but switch_intent prevented the closing mini-window rect from

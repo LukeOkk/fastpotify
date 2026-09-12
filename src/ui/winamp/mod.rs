@@ -431,7 +431,7 @@ fn full_window(
         ))
         .clicked()
     {
-        app.actions.push(Action::ToggleWinampWindow);
+        app.actions.push(Action::ToggleMiniPlayer);
     }
 
     vis_moving
@@ -484,7 +484,7 @@ fn shade_bar(
         .on_hover_text(big_window)
         .clicked()
     {
-        app.actions.push(Action::ToggleWinampWindow);
+        app.actions.push(Action::ToggleMiniPlayer);
     }
     if view
         .button(
@@ -519,7 +519,7 @@ fn shade_bar(
         .on_hover_text(big_window)
         .clicked()
     {
-        app.actions.push(Action::ToggleWinampWindow);
+        app.actions.push(Action::ToggleMiniPlayer);
     }
 
     // The time, in the small font; a click counts down instead.
@@ -581,7 +581,7 @@ fn shade_bar(
                 app.actions.push(Action::Seek(0));
             }
             "next" => app.actions.push(Action::Next),
-            "eject" => app.actions.push(Action::ToggleWinampWindow),
+            "eject" => app.actions.push(Action::ToggleMiniPlayer),
             _ => {}
         }
     }
@@ -653,7 +653,7 @@ fn title_bar(app: &mut App, view: &mut View, ctx: &egui::Context, focused: bool)
         .on_hover_text(big_window)
         .clicked()
     {
-        app.actions.push(Action::ToggleWinampWindow);
+        app.actions.push(Action::ToggleMiniPlayer);
     }
     if view
         .button(
@@ -688,7 +688,7 @@ fn title_bar(app: &mut App, view: &mut View, ctx: &egui::Context, focused: bool)
         .on_hover_text(big_window)
         .clicked()
     {
-        app.actions.push(Action::ToggleWinampWindow);
+        app.actions.push(Action::ToggleMiniPlayer);
     }
 }
 
@@ -729,10 +729,10 @@ fn options_menu(app: &mut App, ui: &mut Ui, unit: f32) {
     }
     if ui.button("Choose a skin").clicked() {
         app.actions.push(Action::Open(Page::Settings));
-        app.actions.push(Action::ToggleWinampWindow);
+        app.actions.push(Action::ToggleMiniPlayer);
     }
     if ui.button("Big window").clicked() {
-        app.actions.push(Action::ToggleWinampWindow);
+        app.actions.push(Action::ToggleMiniPlayer);
     }
     if ui.button("Quit").clicked() {
         app.actions.push(Action::Quit);
@@ -862,7 +862,7 @@ fn clutter_bar(app: &mut App, view: &mut View, now: Option<&NowPlaying>) {
         } else if let Some(id) = &now.show_id {
             app.actions.push(Action::Open(Page::Show(id.clone())));
         }
-        app.actions.push(Action::ToggleWinampWindow);
+        app.actions.push(Action::ToggleMiniPlayer);
     }
     // D goes round the sizes worth having on today's displays, 2x to 4x;
     // 1x is in the menu for whoever wants it.
@@ -1488,7 +1488,7 @@ fn transport(app: &mut App, view: &mut View, now: Option<&NowPlaying>) {
         .on_hover_text("Open the big window")
         .clicked()
     {
-        app.actions.push(Action::ToggleWinampWindow);
+        app.actions.push(Action::ToggleMiniPlayer);
     }
 }
 

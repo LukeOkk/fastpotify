@@ -276,13 +276,13 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     palette.secondary,
                     palette.text,
                     super::keys::platform_shortcut(
-                        "Winamp mini player (Ctrl+M)",
-                        "Winamp mini player (Cmd+Shift+M)",
+                        "Mini player (Ctrl+M)",
+                        "Mini player (Cmd+Shift+M)",
                     ),
                 )
                 .clicked()
                 {
-                    app.actions.push(Action::ToggleWinampWindow);
+                    app.actions.push(Action::ToggleMiniPlayer);
                 }
                 // A quiet spinner once the app has been talking to Spotify for a
                 // while, long enough that fast requests never flash it.

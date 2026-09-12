@@ -116,7 +116,7 @@ fn mini_transport(app: &mut App, view: &mut View, now: Option<&NowPlaying>, heig
                 app.actions.push(Action::Seek(0));
             }
             "next" => app.actions.push(Action::Next),
-            "eject" => app.actions.push(Action::ToggleWinampWindow),
+            "eject" => app.actions.push(Action::ToggleMiniPlayer),
             _ => {}
         }
     }
@@ -638,11 +638,11 @@ fn menus(app: &mut App, view: &mut View, rows: &[Row], queue_uris: &[String], he
 fn add_menu(app: &mut App, ui: &mut egui::Ui) {
     if ui.button("Search Spotify").clicked() {
         app.actions.push(Action::FocusSearch);
-        app.actions.push(Action::ToggleWinampWindow);
+        app.actions.push(Action::ToggleMiniPlayer);
     }
     if ui.button("Liked Songs").clicked() {
         app.actions.push(Action::Open(Page::LikedSongs));
-        app.actions.push(Action::ToggleWinampWindow);
+        app.actions.push(Action::ToggleMiniPlayer);
     }
 }
 
@@ -691,13 +691,13 @@ fn misc_menu(app: &mut App, ui: &mut egui::Ui, rows: &[Row]) {
         && ui.button("Song info").clicked()
     {
         app.actions.push(Action::Open(Page::Album(album.clone())));
-        app.actions.push(Action::ToggleWinampWindow);
+        app.actions.push(Action::ToggleMiniPlayer);
     }
     if let Some(artist) = &row.artist_id
         && ui.button("Artist").clicked()
     {
         app.actions.push(Action::Open(Page::Artist(artist.clone())));
-        app.actions.push(Action::ToggleWinampWindow);
+        app.actions.push(Action::ToggleMiniPlayer);
     }
 }
 

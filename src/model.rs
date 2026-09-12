@@ -838,6 +838,10 @@ pub enum Action {
     ToggleSidebar,
     ToggleQueuePanel,
     ToggleLyricsPanel,
+    /// Open or close the plain-egui equalizer section under the compact bar.
+    ToggleEqualizerWindow,
+    /// Open or close the plain-egui playlist section under the compact bar.
+    TogglePlaylistWindow,
     ToggleDevicesPopup,
     /// Ask GitHub for the latest release and report the result to the user.
     CheckForUpdates,
@@ -858,10 +862,8 @@ pub enum Action {
     ClearArtCache,
     /// Clear local play history.
     ClearPlayHistory,
-    /// Open or close the Winamp window.
-    ToggleWinampWindow,
-    /// Open or close the compact bar window.
-    ToggleCompactBarWindow,
+    /// Open or close the mini player.
+    ToggleMiniPlayer,
     /// Select a skin, or the built-in skin for `None`.
     SetSkin(Option<String>),
     /// Install and select a skin file.

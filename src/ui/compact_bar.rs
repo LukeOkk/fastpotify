@@ -1,8 +1,6 @@
 //! A small, borderless, resizable "now playing" bar: cover, title/artist,
 //! a small reactive level meter, and transport controls in a single row.
-//! A simpler alternative to the Winamp mini player (`src/ui/winamp/`),
-//! which stays a fixed-size, pixel-skinned window -- this one is a plain
-//! egui layout the user can resize.
+//! The mini player's plain egui layout resizes with its native window.
 
 use std::time::Instant;
 
@@ -24,11 +22,16 @@ use super::widgets;
 const CONTROLS_WIDTH: f32 = 300.0;
 const METER_WIDTH: f32 = 64.0;
 const METER_BARS: usize = 14;
+/// The static OAIDV indicator column, immediately left of the level meter.
+const OAIDV_WIDTH: f32 = 12.0;
 
 /// The top row's own height, so lyrics (when open) get whatever is left
 /// instead of being squeezed into a `horizontal_centered` that grows with
 /// its own content.
 const BAR_HEIGHT: f32 = 72.0;
+/// The details row's own minimum height, so it is skipped rather than
+/// clipped when the window is barely taller than the main row.
+const DETAILS_ROW_HEIGHT: f32 = 28.0;
 
 pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
@@ -65,7 +68,11 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 );
 
                 ui.add_space(10.0);
-                let info_width = (ui.available_width() - METER_WIDTH - CONTROLS_WIDTH - 20.0)
+                let info_width = (ui.available_width()
+                    - METER_WIDTH
+                    - OAIDV_WIDTH
+                    - CONTROLS_WIDTH
+                    - 20.0)
                     .max(60.0);
                 ui.scope(|ui| {
                     ui.set_max_width(info_width);
@@ -98,6 +105,8 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 ui.add_space(6.0);
                 ui.separator();
                 ui.add_space(6.0);
+                oaidv_column(ui, &palette);
+                ui.add_space(4.0);
                 level_meter(app, ui, now.as_ref());
 
                 ui.with_layout(
@@ -105,25 +114,38 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     |ui| transport(app, ui, now.as_ref()),
                 );
             }
+            if ui.available_height() >= DETAILS_ROW_HEIGHT {
+                ui.add_space(4.0);
+                details_row(app, ui, now.as_ref());
+            }
             if app.show_lyrics_panel {
                 ui.separator();
                 super::lyrics::header(app, ui);
                 ui.add_space(4.0);
                 super::lyrics::contents(app, ui);
             }
+            if app.show_equalizer_window {
+                ui.separator();
+                super::equalizer_window::show(app, ui);
+            }
+            if app.show_playlist_window {
+                ui.separator();
+                super::playlist_window::show(app, ui);
+            }
         });
+    // Never save the outgoing main window's size during a mode switch.
     // Clamped: on the frame this window opens, or the one where sign-in
     // forces it closed again, egui can report a stale or transitional
     // `inner_rect` (once literally the outgoing main window's full-screen
     // size). Ignoring anything outside a sane bar size keeps a corrupt
     // reading from ever reaching disk.
     let size = ui.ctx().input(|input| input.viewport().inner_rect);
-    if let Some(rect) = size {
+    if !app.switch_intent && let Some(rect) = size {
         let size = [rect.width().clamp(260.0, 900.0), rect.height().clamp(56.0, 220.0)];
-        if (app.settings.compact_bar_size[0] - size[0]).abs() > 1.0
-            || (app.settings.compact_bar_size[1] - size[1]).abs() > 1.0
+        if (app.settings.mini_player_size[0] - size[0]).abs() > 1.0
+            || (app.settings.mini_player_size[1] - size[1]).abs() > 1.0
         {
-            app.settings.compact_bar_size = size;
+            app.settings.mini_player_size = size;
             app.actions.push(Action::SettingsChanged);
         }
     }
@@ -174,6 +196,124 @@ fn level_meter(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
     }
 }
 
+/// Five static letters stacked to the left of the level meter, the same spot
+/// the classic Winamp skin drew its column of small indicator lights.
+/// Decorative only: nothing in this app maps to individual O/A/I/D/V lamps,
+/// so this reproduces the skin's look without inventing fake state for it.
+fn oaidv_column(ui: &mut egui::Ui, palette: &theme::Palette) {
+    const LETTERS: [&str; 5] = ["O", "A", "I", "D", "V"];
+    let (rect, _) = ui.allocate_exact_size(
+        Vec2::new(OAIDV_WIDTH, ui.available_height().min(52.0)),
+        egui::Sense::hover(),
+    );
+    if !ui.is_rect_visible(rect) {
+        return;
+    }
+    let font = theme::regular(9.0);
+    let step = rect.height() / LETTERS.len() as f32;
+    let painter = ui.painter();
+    for (index, letter) in LETTERS.iter().enumerate() {
+        let y = rect.top() + step * (index as f32 + 0.5);
+        painter.text(
+            egui::pos2(rect.center().x, y),
+            egui::Align2::CENTER_CENTER,
+            letter,
+            font.clone(),
+            palette.dim,
+        );
+    }
+}
+
+/// The details row under the main bar: EQ/PL section toggles, mute, the
+/// mono/stereo indicator, and the bitrate/sample-rate readout Winamp's own
+/// compact bar showed in this spot.
+fn details_row(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
+    let palette = app.palette;
+    egui::Sides::new().show(
+        ui,
+        |ui| {
+            ui.spacing_mut().item_spacing.x = 6.0;
+            if theme::pill_button(ui, &palette, "EQ", app.show_equalizer_window).clicked() {
+                app.actions.push(Action::ToggleEqualizerWindow);
+            }
+            if theme::pill_button(ui, &palette, "PL", app.show_playlist_window).clicked() {
+                app.actions.push(Action::TogglePlaylistWindow);
+            }
+
+            // Volume: the same icon-by-level match and the same
+            // `Action::ToggleMute` `player_bar.rs`'s own mute button uses,
+            // rather than a new popup slider mechanism for this cramped row.
+            let volume = now
+                .map(|now| now.volume_percent)
+                .unwrap_or_else(|| crate::app::volume_to_percent(app.local.volume));
+            let shown = match app.volume_preview {
+                Some(fraction) => (fraction * 100.0).round() as u8,
+                None => volume,
+            };
+            let volume_icon = match shown {
+                0 => Icon::VolumeX,
+                1..=33 => Icon::Volume,
+                34..=66 => Icon::Volume1,
+                _ => Icon::Volume2,
+            };
+            if theme::icon_button(
+                ui,
+                volume_icon,
+                13.0,
+                palette.secondary,
+                palette.text,
+                if shown == 0 { "Unmute" } else { "Mute" },
+            )
+            .clicked()
+            {
+                app.actions.push(Action::ToggleMute);
+            }
+
+            // Mono/stereo: the same lamp logic `src/ui/winamp/mod.rs`'s
+            // `status` function uses -- only the side that is not already
+            // active flips `Action::ToggleMono`, so clicking the active
+            // side is a no-op rather than bouncing back to the other mode.
+            let mono = app.settings.mono;
+            let small = theme::regular(10.0);
+            if theme::link(
+                ui,
+                "MONO",
+                small.clone(),
+                if mono { palette.accent } else { palette.dim },
+            )
+            .on_hover_text("Play in mono")
+            .clicked()
+                && !mono
+            {
+                app.actions.push(Action::ToggleMono);
+            }
+            if theme::link(
+                ui,
+                "STEREO",
+                small,
+                if mono { palette.dim } else { palette.accent },
+            )
+            .on_hover_text("Play in stereo")
+            .clicked()
+                && mono
+            {
+                app.actions.push(Action::ToggleMono);
+            }
+        },
+        |ui| {
+            ui.spacing_mut().item_spacing.x = 6.0;
+            let small = theme::regular(10.0);
+            theme::text(ui, "44 KHZ", small.clone(), palette.dim);
+            theme::text(
+                ui,
+                format!("{} KBPS", app.settings.bitrate),
+                small,
+                palette.dim,
+            );
+        },
+    );
+}
+
 fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
     let palette = app.palette;
     let enabled = now.is_some_and(|now| now.can_control) || app.is_connected();
@@ -200,7 +340,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
     )
     .clicked()
     {
-        app.actions.push(Action::ToggleCompactBarWindow);
+        app.actions.push(Action::ToggleMiniPlayer);
     }
     ui.add_space(4.0);
 
