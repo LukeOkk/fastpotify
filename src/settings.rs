@@ -140,7 +140,6 @@ impl AccentColor {
     }
 }
 
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -228,6 +227,18 @@ pub struct Settings {
     /// The mini player's last size, in logical pixels.
     #[serde(default = "default_mini_player_size")]
     pub mini_player_size: [f32; 2],
+    /// The mini player paints its background with the album art's dominant
+    /// colour instead of the plain panel colour.
+    #[serde(default = "default_mini_player_tint_background")]
+    pub mini_player_tint_background: bool,
+    /// The mini player keeps its control column; clearing it leaves only the
+    /// artwork, the details, and the meter.
+    #[serde(default = "default_mini_player_show_controls")]
+    pub mini_player_show_controls: bool,
+    /// Where the mini player's draggable divider sits, as a fraction of the
+    /// bar's width between the details side and the controls side.
+    #[serde(default = "default_mini_player_split")]
+    pub mini_player_split: f32,
     /// Windows: keep a taskbar button while the Winamp window is visible.
     pub winamp_show_taskbar: bool,
     /// Skin file or folder name. `None` selects the built-in skin.
@@ -321,6 +332,9 @@ impl Default for Settings {
             zoom: 1.0,
             mini_player_open: false,
             mini_player_size: default_mini_player_size(),
+            mini_player_tint_background: default_mini_player_tint_background(),
+            mini_player_show_controls: default_mini_player_show_controls(),
+            mini_player_split: default_mini_player_split(),
             winamp_show_taskbar: true,
             skin: None,
             skin_scale: None,
@@ -353,7 +367,19 @@ fn default_buffer_ms() -> u32 {
 }
 
 fn default_mini_player_size() -> [f32; 2] {
-    [460.0, 72.0]
+    [460.0, 96.0]
+}
+
+fn default_mini_player_tint_background() -> bool {
+    true
+}
+
+fn default_mini_player_show_controls() -> bool {
+    true
+}
+
+fn default_mini_player_split() -> f32 {
+    0.5
 }
 
 impl Settings {
@@ -444,7 +470,10 @@ mod tests {
     fn older_settings_keep_the_mini_player_closed_and_the_built_in_skin() {
         let settings: Settings = serde_json::from_str(r#"{"zoom": 1.2}"#).unwrap();
         assert!(!settings.mini_player_open);
-        assert_eq!(settings.mini_player_size, [460.0, 72.0]);
+        assert_eq!(settings.mini_player_size, [460.0, 96.0]);
+        assert!(settings.mini_player_tint_background);
+        assert!(settings.mini_player_show_controls);
+        assert_eq!(settings.mini_player_split, 0.5);
         assert!(settings.winamp_show_taskbar);
         assert_eq!(settings.skin, None);
         assert_eq!(settings.skin_scale, None);
@@ -459,6 +488,31 @@ mod tests {
         assert!(!settings.playlist_shaded);
         assert!(!settings.eq_shaded);
         assert!(!settings.winamp_shaded);
+    }
+
+    #[test]
+    fn the_mini_player_layout_round_trips_and_survives_older_settings() {
+        let settings = Settings {
+            mini_player_tint_background: false,
+            mini_player_show_controls: false,
+            mini_player_split: 0.32,
+            ..Settings::default()
+        };
+        let json = serde_json::to_string(&settings).unwrap();
+        let restored: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, settings);
+        assert!(!restored.mini_player_tint_background);
+        assert!(!restored.mini_player_show_controls);
+        assert_eq!(restored.mini_player_split, 0.32);
+
+        let older: Settings =
+            serde_json::from_str(r#"{"mini_player_open":true,"mini_player_size":[460.0,72.0]}"#)
+                .unwrap();
+        assert!(older.mini_player_open);
+        assert_eq!(older.mini_player_size, [460.0, 72.0]);
+        assert!(older.mini_player_tint_background);
+        assert!(older.mini_player_show_controls);
+        assert_eq!(older.mini_player_split, 0.5);
     }
 
     #[test]

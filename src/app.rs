@@ -307,6 +307,9 @@ pub struct App {
     pub show_equalizer_window: bool,
     /// The compact bar's own playlist section, expanded under the details row.
     pub show_playlist_window: bool,
+    /// The mini player's settings popover is open. Transient, like the two
+    /// fields above: it is never written to settings.json.
+    pub show_mini_player_settings: bool,
     /// The track the lyrics below are for.
     pub lyrics_uri: Option<String>,
     /// `Loaded(None)` when no lyrics are available.
@@ -623,6 +626,7 @@ impl App {
             show_lyrics_panel: false,
             show_equalizer_window: false,
             show_playlist_window: false,
+            show_mini_player_settings: false,
             lyrics_uri: None,
             lyrics: Loadable::NotLoaded,
             lyrics_following: true,

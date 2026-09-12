@@ -686,6 +686,10 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
                 app.settings.mini_player_open = true;
                 app.settings.skin = None;
             }
+            "mini-settings" => {
+                app.settings.mini_player_open = true;
+                app.show_mini_player_settings = true;
+            }
             "playlist" => app.settings.playlist_open = true,
             "shade" => app.settings.winamp_shaded = true,
             "playlist-shade" => app.settings.playlist_shaded = true,
