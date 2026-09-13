@@ -12,7 +12,11 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
     let palette = app.palette;
     ui.add_space(8.0);
     let (title, empty_title, empty_body) = match page {
-        Page::Albums => (tr!(app.locale, "Albums").into_owned(), tr!(app.locale, "No saved albums").into_owned(), tr!(app.locale, "Saved albums appear here.").into_owned()),
+        Page::Albums => (
+            tr!(app.locale, "Albums").into_owned(),
+            tr!(app.locale, "No saved albums").into_owned(),
+            tr!(app.locale, "Saved albums appear here.").into_owned(),
+        ),
         Page::Artists => (
             tr!(app.locale, "Artists").into_owned(),
             tr!(app.locale, "No followed artists").into_owned(),

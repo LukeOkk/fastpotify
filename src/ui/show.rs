@@ -78,7 +78,11 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                         &tr!(app.locale, "Remove from Your Library"),
                     )
                 } else {
-                    (Icon::CirclePlus, palette.secondary, &tr!(app.locale, "Follow podcast"))
+                    (
+                        Icon::CirclePlus,
+                        palette.secondary,
+                        &tr!(app.locale, "Follow podcast"),
+                    )
                 };
                 if theme::icon_button(ui, icon, 26.0, color, palette.text, tooltip).clicked() {
                     app.actions.push(Action::ToggleSaved(show.uri.clone()));
@@ -242,7 +246,13 @@ pub fn episode_row(
         Icon::PlayFilled
     };
     if app.play_pending(&episode.uri) {
-        theme::circle_spinner(&mut child, 32.0, palette.text, palette.window, &tr!(app.locale, "Starting…"));
+        theme::circle_spinner(
+            &mut child,
+            32.0,
+            palette.text,
+            palette.window,
+            &tr!(app.locale, "Starting…"),
+        );
     } else if theme::circle_button(
         &mut child,
         icon,
@@ -300,7 +310,7 @@ pub fn episode_row(
             ui.painter().text(
                 pos2(x + 20.0, footer_y),
                 egui::Align2::LEFT_CENTER,
-                &tr!(app.locale, "Played"),
+                tr!(app.locale, "Played"),
                 theme::regular(12.0),
                 palette.secondary,
             );

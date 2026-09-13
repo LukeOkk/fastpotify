@@ -513,7 +513,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
         ui,
         &palette,
         Icon::Compass,
-        "Explore",
+        &tr!(locale, "Explore"),
         page == Page::Explore,
     )
     .clicked()

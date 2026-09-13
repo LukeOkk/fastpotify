@@ -59,10 +59,22 @@ pub(crate) fn header(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
     ui.horizontal(|ui| {
         ui.add_space(4.0);
-        theme::text(ui, tr!(app.locale, "Lyrics").into_owned(), theme::bold(18.0), palette.text);
+        theme::text(
+            ui,
+            tr!(app.locale, "Lyrics").into_owned(),
+            theme::bold(18.0),
+            palette.text,
+        );
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if theme::icon_button(ui, Icon::X, 18.0, palette.secondary, palette.text, &tr!(app.locale, "Close"))
-                .clicked()
+            if theme::icon_button(
+                ui,
+                Icon::X,
+                18.0,
+                palette.secondary,
+                palette.text,
+                &tr!(app.locale, "Close"),
+            )
+            .clicked()
             {
                 app.actions.push(Action::ToggleLyricsPanel);
             }
@@ -101,7 +113,12 @@ pub(crate) fn header(app: &mut App, ui: &mut egui::Ui) {
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.add_space(4.0);
-            theme::text(ui, tr!(app.locale, "Translate to").into_owned(), theme::regular(12.5), palette.secondary);
+            theme::text(
+                ui,
+                tr!(app.locale, "Translate to").into_owned(),
+                theme::regular(12.5),
+                palette.secondary,
+            );
             let current = app.settings.lyrics_translate_language.clone();
             let current_label = current
                 .as_deref()
@@ -117,7 +134,10 @@ pub(crate) fn header(app: &mut App, ui: &mut egui::Ui) {
                 .show_ui(ui, |ui| {
                     let mut changed = false;
                     if ui
-                        .selectable_label(current.is_none(), tr!(app.locale, "Automatic (system language)").into_owned())
+                        .selectable_label(
+                            current.is_none(),
+                            tr!(app.locale, "Automatic (system language)").into_owned(),
+                        )
                         .clicked()
                         && current.is_some()
                     {
@@ -141,7 +161,12 @@ pub(crate) fn header(app: &mut App, ui: &mut egui::Ui) {
             Loadable::Loading => {
                 ui.horizontal(|ui| {
                     theme::spinner(ui, 14.0, palette.accent);
-                    theme::text(ui, tr!(app.locale, "Translating…").into_owned(), theme::regular(12.5), palette.secondary);
+                    theme::text(
+                        ui,
+                        tr!(app.locale, "Translating…").into_owned(),
+                        theme::regular(12.5),
+                        palette.secondary,
+                    );
                 });
             }
             Loadable::Failed(error) => {
@@ -154,9 +179,15 @@ pub(crate) fn header(app: &mut App, ui: &mut egui::Ui) {
                 .on_hover_text(error);
                 ui.add(
                     egui::Label::new(
-                        egui::RichText::new(tr!(app.locale, "Set a translation server or API key in Settings.").into_owned())
-                            .font(theme::regular(12.5))
-                            .color(palette.secondary),
+                        egui::RichText::new(
+                            tr!(
+                                app.locale,
+                                "Set a translation server or API key in Settings."
+                            )
+                            .into_owned(),
+                        )
+                        .font(theme::regular(12.5))
+                        .color(palette.secondary),
                     )
                     .wrap(),
                 );

@@ -140,12 +140,7 @@ pub const TRANSLATE_LANGUAGES: &[(&str, &str)] = &[
 
 pub fn system_language() -> String {
     sys_locale::get_locale()
-        .and_then(|locale| {
-            locale
-                .split(['-', '_'])
-                .next()
-                .map(str::to_lowercase)
-        })
+        .and_then(|locale| locale.split(['-', '_']).next().map(str::to_lowercase))
         .filter(|code| code.len() == 2)
         .unwrap_or_else(|| "en".to_string())
 }

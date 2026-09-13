@@ -6,7 +6,7 @@ msgstr ""
 "Project-Id-Version: Fastpotify\n"
 "Report-Msgid-Bugs-To: https://github.com/crmne/fastpotify/issues/new?"
 "template=translation.yml\n"
-"POT-Creation-Date: 2026-09-12 22:51-0300\n"
+"POT-Creation-Date: 2026-09-13 11:08-0300\n"
 "PO-Revision-Date: 2026-09-09 13:30+0000\n"
 "Last-Translator: Fastpotify contributors\n"
 "Language-Team: Russian\n"
@@ -17,95 +17,1149 @@ msgstr ""
 "Plural-Forms: nplurals=3; plural=(n % 10 == 1 && n % 100 != 11 ? 0 : n % 10 "
 ">= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 1 : 2);\n"
 
-#: src/ui/sidebar.rs:49
-msgid "Liked Songs"
-msgstr "Любимые треки"
-
-#: src/ui/sidebar.rs:52
-msgid "Playlist"
-msgstr "Плейлист"
-
-#: src/ui/sidebar.rs:91
-msgid "Library order"
-msgstr "Порядок медиатеки"
-
-#: src/ui/sidebar.rs:94
-msgid "Recently played"
-msgstr "Недавно прослушанные"
-
-#: src/ui/sidebar.rs:96
-msgid "Name"
-msgstr "Название"
-
-#: src/ui/sidebar.rs:99
-msgid "Recently added"
-msgstr "Недавно добавленные"
-
-#: src/ui/sidebar.rs:101
-msgid "Local custom order"
-msgstr "Свой локальный порядок"
-
-#: src/ui/sidebar.rs:104
-msgid "Spotify custom order"
-msgstr "Свой порядок Spotify"
-
-#: src/ui/sidebar.rs:503 src/i18n.rs:281 src/i18n.rs:284
-msgid "Home"
-msgstr "Главная"
-
-#: src/ui/sidebar.rs:514
-msgid "Search"
-msgstr "Поиск"
-
-#: src/ui/sidebar.rs:557
-msgid "Library"
-msgstr "Медиатека"
-
-#: src/ui/sidebar.rs:570
-msgid "Hide sidebar (Ctrl+B)"
-msgstr "Скрыть боковую панель (Ctrl+B)"
-
-#: src/ui/sidebar.rs:571
-msgid "Hide sidebar (Cmd+B)"
-msgstr "Скрыть боковую панель (Cmd+B)"
-
-#: src/ui/sidebar.rs:585
-msgid "Create a playlist"
-msgstr "Создать плейлист"
-
-#: src/ui/sidebar.rs:601
-msgid "Search Your Library"
-msgstr "Поиск в медиатеке"
-
-#: src/ui/sidebar.rs:619
-msgid "Playlists"
-msgstr "Плейлисты"
-
-#: src/ui/sidebar.rs:620
-msgid "Albums"
-msgstr "Альбомы"
-
-#: src/ui/sidebar.rs:621
-msgid "Artists"
-msgstr "Исполнители"
-
-#: src/ui/sidebar.rs:622
-msgid "Podcasts"
-msgstr "Подкасты"
-
-#: src/ui/sidebar.rs:642
-msgid "Search in Your Library"
-msgstr "Искать в медиатеке"
-
-#: src/ui/sidebar.rs:776
-msgid "Artist"
-msgstr "Исполнитель"
-
 #. Translators: Keep {count} exactly as written. It becomes the number of liked songs.
-#: src/i18n.rs:74
+#: src/i18n.rs:74 src/i18n.rs:461
 #, rust-format
 msgid "Playlist • {count} song"
 msgid_plural "Playlist • {count} songs"
 msgstr[0] "Плейлист • {count} трек"
 msgstr[1] "Плейлист • {count} трека"
 msgstr[2] "Плейлист • {count} треков"
+
+#: src/i18n.rs:331 src/i18n.rs:334 src/ui/sidebar.rs:494 src/ui/topbar.rs:95
+msgid "Home"
+msgstr "Главная"
+
+#: src/i18n.rs:456 src/i18n.rs:457 src/ui/sidebar.rs:505
+msgid "Search"
+msgstr "Поиск"
+
+#: src/ui/artist.rs:48 src/ui/artist.rs:259 src/ui/home.rs:360
+#: src/ui/library.rs:99 src/ui/search.rs:121 src/ui/search.rs:400
+#: src/ui/sidebar.rs:762
+msgid "Artist"
+msgstr "Исполнитель"
+
+#: src/ui/artist.rs:59 src/ui/collection.rs:143 src/ui/show.rs:55
+#: src/ui/show.rs:245
+msgid "Starting…"
+msgstr ""
+
+#: src/ui/artist.rs:67 src/ui/home.rs:142 src/ui/player_bar.rs:352
+#: src/ui/search.rs:318 src/ui/show.rs:257
+msgid "Play"
+msgstr ""
+
+#: src/ui/artist.rs:93 src/ui/collection.rs:231 src/ui/show.rs:92
+#: src/ui/show.rs:331
+msgid "More"
+msgstr ""
+
+#: src/ui/artist.rs:104
+msgid "Popular"
+msgstr ""
+
+#: src/ui/artist.rs:159
+msgid "No popular songs to show."
+msgstr ""
+
+#: src/ui/artist.rs:170
+msgid "Discography"
+msgstr ""
+
+#: src/ui/artist.rs:235
+msgid "Nothing in this category."
+msgstr ""
+
+#: src/ui/artist.rs:238 src/ui/queue.rs:370
+msgid "Load more"
+msgstr ""
+
+#: src/ui/artist.rs:252
+msgid "Fans also like"
+msgstr ""
+
+#: src/ui/collection.rs:252
+msgid "Filter"
+msgstr ""
+
+#: src/ui/collection.rs:273
+msgid "Go to song"
+msgstr ""
+
+#: src/ui/collection.rs:643
+msgid "Nothing here yet"
+msgstr ""
+
+#: src/ui/collection.rs:644
+msgid "Added songs appear here."
+msgstr ""
+
+#: src/ui/collection.rs:775 src/ui/home.rs:471
+msgid "Your top songs"
+msgstr ""
+
+#: src/ui/collection.rs:779
+msgid "Your most-played tracks from the last four weeks."
+msgstr ""
+
+#: src/ui/collection.rs:951
+msgid "Add to Your Library"
+msgstr ""
+
+#: src/ui/collection.rs:951 src/ui/collection.rs:1067 src/ui/show.rs:78
+msgid "Remove from Your Library"
+msgstr ""
+
+#: src/ui/collection.rs:1067
+msgid "Save to Your Library"
+msgstr ""
+
+#: src/ui/collection.rs:1232 src/ui/sidebar.rs:52
+msgid "Playlist"
+msgstr "Плейлист"
+
+#: src/ui/collection.rs:1233 src/ui/collection.rs:1269 src/ui/home.rs:44
+#: src/ui/sidebar.rs:49
+msgid "Liked Songs"
+msgstr "Любимые треки"
+
+#: src/ui/devices.rs:194 src/ui/player_bar.rs:540
+msgid "Connect to a device"
+msgstr ""
+
+#: src/ui/devices.rs:204
+msgid "Refresh"
+msgstr ""
+
+#: src/ui/devices.rs:267
+msgid "No devices found. Open Spotify on another device, then refresh."
+msgstr ""
+
+#: src/ui/dialogs.rs:37
+msgid "Spend less time waiting for Spotify"
+msgstr ""
+
+#: src/ui/dialogs.rs:49
+msgid "Set up personal app"
+msgstr ""
+
+#: src/ui/dialogs.rs:52
+msgid "Keep shared app"
+msgstr ""
+
+#: src/ui/dialogs.rs:63
+msgid "Delete playlist?"
+msgstr ""
+
+#: src/ui/dialogs.rs:65
+msgid "Remove from Your Library?"
+msgstr ""
+
+#: src/ui/dialogs.rs:86
+msgid "Delete"
+msgstr ""
+
+#: src/ui/dialogs.rs:88 src/ui/settings.rs:169 src/ui/settings.rs:194
+msgid "Remove"
+msgstr ""
+
+#: src/ui/dialogs.rs:96 src/ui/dialogs.rs:139 src/ui/dialogs.rs:331
+#: src/ui/dialogs.rs:393 src/ui/login.rs:58
+msgid "Cancel"
+msgstr ""
+
+#: src/ui/dialogs.rs:112
+msgid "Songs already in this playlist"
+msgstr ""
+
+#: src/ui/dialogs.rs:114
+msgid "Song already in this playlist"
+msgstr ""
+
+#: src/ui/dialogs.rs:131
+msgid "Add anyway"
+msgstr ""
+
+#: src/ui/dialogs.rs:145 src/ui/settings.rs:1134 src/ui/topbar.rs:252
+msgid "Keyboard shortcuts"
+msgstr ""
+
+#: src/ui/dialogs.rs:184
+msgid "Done"
+msgstr ""
+
+#: src/ui/dialogs.rs:192
+msgid "This account cannot play music here"
+msgstr ""
+
+#: src/ui/dialogs.rs:292
+msgid "New playlist"
+msgstr ""
+
+#: src/ui/dialogs.rs:294 src/ui/dialogs.rs:352 src/ui/sidebar.rs:93
+msgid "Name"
+msgstr "Название"
+
+#: src/ui/dialogs.rs:295
+msgid "My playlist"
+msgstr ""
+
+#: src/ui/dialogs.rs:298 src/ui/dialogs.rs:299 src/ui/dialogs.rs:373
+#: src/ui/dialogs.rs:374
+msgid "Public playlist"
+msgstr ""
+
+#: src/ui/dialogs.rs:323
+msgid "Create"
+msgstr ""
+
+#: src/ui/dialogs.rs:350
+msgid "Edit details"
+msgstr ""
+
+#: src/ui/dialogs.rs:353
+msgid "Playlist name"
+msgstr ""
+
+#: src/ui/dialogs.rs:355
+msgid "Description"
+msgstr ""
+
+#: src/ui/dialogs.rs:364
+msgid "Optional description"
+msgstr ""
+
+#: src/ui/dialogs.rs:385
+msgid "Save"
+msgstr ""
+
+#: src/ui/explore.rs:24 src/ui/sidebar.rs:516 src/ui/topbar.rs:99
+msgid "Explore"
+msgstr ""
+
+#: src/ui/explore.rs:36
+msgid "Nothing to browse"
+msgstr ""
+
+#: src/ui/explore.rs:39
+msgid "Spotify didn't return any categories for this account."
+msgstr ""
+
+#: src/ui/explore.rs:69
+#, rust-format
+msgid ""
+"Spotify retired this category's playlist feed in November 2024, so these are "
+"search results for “{heading}”."
+msgstr ""
+
+#: src/ui/explore.rs:91
+msgid "No playlists here"
+msgstr ""
+
+#: src/ui/explore.rs:94
+msgid "Spotify has nothing to show for this category right now."
+msgstr ""
+
+#: src/ui/explore.rs:108 src/ui/home.rs:223 src/ui/search.rs:522
+#, rust-format
+msgid "By {owner}"
+msgstr ""
+
+#: src/ui/home.rs:180
+msgid "Made for you"
+msgstr ""
+
+#: src/ui/home.rs:212
+msgid "Couldn't load this shelf"
+msgstr ""
+
+#: src/ui/home.rs:265 src/ui/sidebar.rs:92
+msgid "Recently played"
+msgstr "Недавно прослушанные"
+
+#: src/ui/home.rs:334
+msgid "Your top artists"
+msgstr ""
+
+#: src/ui/home.rs:475
+msgid "Show more top songs"
+msgstr ""
+
+#: src/ui/home.rs:485
+msgid "Recommended for you"
+msgstr ""
+
+#: src/ui/library.rs:15 src/ui/search.rs:497 src/ui/sidebar.rs:606
+msgid "Albums"
+msgstr "Альбомы"
+
+#: src/ui/library.rs:15
+msgid "No saved albums"
+msgstr ""
+
+#: src/ui/library.rs:15
+msgid "Saved albums appear here."
+msgstr ""
+
+#: src/ui/library.rs:17 src/ui/search.rs:434 src/ui/sidebar.rs:607
+msgid "Artists"
+msgstr "Исполнители"
+
+#: src/ui/library.rs:18
+msgid "No followed artists"
+msgstr ""
+
+#: src/ui/library.rs:19
+msgid "Followed artists appear here."
+msgstr ""
+
+#: src/ui/library.rs:22 src/ui/search.rs:617 src/ui/sidebar.rs:608
+msgid "Podcasts"
+msgstr "Подкасты"
+
+#: src/ui/library.rs:23
+msgid "No podcasts yet"
+msgstr ""
+
+#: src/ui/library.rs:24
+msgid "Followed podcasts appear here."
+msgstr ""
+
+#: src/ui/library.rs:27 src/ui/search.rs:237
+msgid "Episodes"
+msgstr ""
+
+#: src/ui/library.rs:28
+msgid "No saved episodes"
+msgstr ""
+
+#: src/ui/library.rs:29
+msgid "Saved episodes appear here."
+msgstr ""
+
+#: src/ui/login.rs:42
+msgid "Fastpotify"
+msgstr ""
+
+#: src/ui/login.rs:43
+msgid "A native Spotify client."
+msgstr ""
+
+#: src/ui/login.rs:51
+msgid "Waiting for Spotify in your browser…"
+msgstr ""
+
+#: src/ui/login.rs:54
+msgid "Didn't open? Open the sign-in page again"
+msgstr ""
+
+#: src/ui/login.rs:66 src/ui/settings.rs:216
+msgid "Connecting to Spotify…"
+msgstr ""
+
+#: src/ui/login.rs:75 src/ui/lyrics.rs:191 src/ui/settings.rs:223
+msgid "Try again"
+msgstr ""
+
+#: src/ui/login.rs:83 src/ui/login.rs:118
+msgid "Use the shared Spotify app instead"
+msgstr ""
+
+#: src/ui/login.rs:97
+msgid "Sign in with Spotify"
+msgstr ""
+
+#: src/ui/lyrics.rs:62 src/ui/player_bar.rs:576
+msgid "Lyrics"
+msgstr ""
+
+#: src/ui/lyrics.rs:64 src/ui/queue.rs:72
+msgid "Close"
+msgstr ""
+
+#: src/ui/lyrics.rs:72
+msgid "Follow"
+msgstr ""
+
+#: src/ui/lyrics.rs:88 src/ui/settings.rs:664 src/ui/settings.rs:670
+msgid "Translate lyrics"
+msgstr ""
+
+#: src/ui/lyrics.rs:104
+msgid "Translate to"
+msgstr ""
+
+#: src/ui/lyrics.rs:120 src/ui/settings.rs:692 src/ui/settings.rs:709
+msgid "Automatic (system language)"
+msgstr ""
+
+#: src/ui/lyrics.rs:144
+msgid "Translating…"
+msgstr ""
+
+#: src/ui/lyrics.rs:157
+msgid "Set a translation server or API key in Settings."
+msgstr ""
+
+#: src/ui/lyrics.rs:176 src/ui/player_bar.rs:85
+msgid "Nothing playing"
+msgstr ""
+
+#: src/ui/lyrics.rs:177
+msgid "Play a song to see its lyrics."
+msgstr ""
+
+#: src/ui/lyrics.rs:201
+msgid "No lyrics"
+msgstr ""
+
+#: src/ui/lyrics.rs:202
+msgid "No lyrics found for this track."
+msgstr ""
+
+#: src/ui/lyrics.rs:211
+msgid "Instrumental"
+msgstr ""
+
+#: src/ui/lyrics.rs:212
+msgid "No timed lyrics for this track."
+msgstr ""
+
+#: src/ui/player_bar.rs:91
+msgid "Pick a song, album, or playlist"
+msgstr ""
+
+#: src/ui/player_bar.rs:221
+msgid "Remove from Liked Songs"
+msgstr ""
+
+#: src/ui/player_bar.rs:223
+msgid "Save to Liked Songs"
+msgstr ""
+
+#: src/ui/player_bar.rs:304 src/ui/player_bar.rs:311
+msgid "Shuffle"
+msgstr ""
+
+#: src/ui/player_bar.rs:325
+msgid "Previous"
+msgstr ""
+
+#: src/ui/player_bar.rs:350
+msgid "Pause"
+msgstr ""
+
+#: src/ui/player_bar.rs:377
+msgid "Next"
+msgstr ""
+
+#: src/ui/player_bar.rs:385
+msgid "Repeat"
+msgstr ""
+
+#: src/ui/player_bar.rs:386
+msgid "Repeat one"
+msgstr ""
+
+#: src/ui/player_bar.rs:387
+msgid "Repeat off"
+msgstr ""
+
+#: src/ui/player_bar.rs:447
+msgid "Playback position (%)"
+msgstr ""
+
+#: src/ui/player_bar.rs:485
+msgid "Volume (%)"
+msgstr ""
+
+#: src/ui/player_bar.rs:512
+msgid "Unmute"
+msgstr ""
+
+#: src/ui/player_bar.rs:514
+msgid "Mute"
+msgstr ""
+
+#: src/ui/player_bar.rs:560 src/ui/queue.rs:21 src/ui/queue.rs:66
+msgid "Queue"
+msgstr ""
+
+#: src/ui/queue.rs:66
+msgid "Recent"
+msgstr ""
+
+#: src/ui/queue.rs:137
+msgid "Clear queue"
+msgstr ""
+
+#: src/ui/queue.rs:181
+msgid "Playing from"
+msgstr ""
+
+#: src/ui/queue.rs:196
+msgid "Now playing"
+msgstr ""
+
+#: src/ui/queue.rs:226
+msgid "Nothing queued"
+msgstr ""
+
+#: src/ui/queue.rs:227
+msgid "Queued songs appear here."
+msgstr ""
+
+#: src/ui/queue.rs:245
+msgid "Playing next"
+msgstr ""
+
+#: src/ui/queue.rs:260
+msgid "Next up"
+msgstr ""
+
+#: src/ui/queue.rs:295 src/ui/queue.rs:320
+msgid "Retry"
+msgstr ""
+
+#: src/ui/queue.rs:306
+msgid "No recent plays"
+msgstr ""
+
+#: src/ui/queue.rs:307
+msgid "Played songs appear here."
+msgstr ""
+
+#: src/ui/search.rs:46
+#, rust-format
+msgid "No results for “{query}”"
+msgstr ""
+
+#: src/ui/search.rs:47
+msgid "Check the spelling, or try fewer words."
+msgstr ""
+
+#: src/ui/search.rs:70
+msgid "Search Spotify"
+msgstr ""
+
+#: src/ui/search.rs:73
+msgid "Find songs, artists, albums, playlists, and podcasts."
+msgstr ""
+
+#: src/ui/search.rs:78
+msgid "Recent searches"
+msgstr ""
+
+#: src/ui/search.rs:113
+msgid "Top result"
+msgstr ""
+
+#: src/ui/search.rs:141
+#, rust-format
+msgid "Song • {artists}"
+msgstr ""
+
+#: src/ui/search.rs:162
+#, rust-format
+msgid "Album • {artists}"
+msgstr ""
+
+#: src/ui/search.rs:185
+#, rust-format
+msgid "Playlist • {owner}"
+msgstr ""
+
+#: src/ui/search.rs:206
+#, rust-format
+msgid "Podcast • {publisher}"
+msgstr ""
+
+#: src/ui/search.rs:354
+msgid "Songs"
+msgstr ""
+
+#: src/ui/search.rs:565 src/ui/sidebar.rs:605
+msgid "Playlists"
+msgstr "Плейлисты"
+
+#: src/ui/settings.rs:46 src/ui/topbar.rs:244 src/ui/topbar.rs:274
+msgid "Settings"
+msgstr ""
+
+#: src/ui/settings.rs:54
+msgid "Account"
+msgstr ""
+
+#: src/ui/settings.rs:74
+msgid "Spotify Premium"
+msgstr ""
+
+#: src/ui/settings.rs:76
+msgid "Spotify Free, local playback needs Premium"
+msgstr ""
+
+#: src/ui/settings.rs:94 src/ui/topbar.rs:262
+msgid "Sign out"
+msgstr ""
+
+#: src/ui/settings.rs:104
+msgid "Personal Spotify app"
+msgstr ""
+
+#: src/ui/settings.rs:107
+msgid ""
+"Use a personal Development Mode app for a separate API quota. The shared app "
+"stays active."
+msgstr ""
+
+#: src/ui/settings.rs:118
+msgid "Client ID"
+msgstr ""
+
+#: src/ui/settings.rs:142
+msgid "Create an app"
+msgstr ""
+
+#: src/ui/settings.rs:143
+msgid "Create one for free in Spotify's developer dashboard."
+msgstr ""
+
+#: src/ui/settings.rs:145
+msgid "Setup guide"
+msgstr ""
+
+#: src/ui/settings.rs:166
+msgid "Personal app ready"
+msgstr ""
+
+#: src/ui/settings.rs:167
+msgid "Supported requests use your app. Other requests use the shared app."
+msgstr ""
+
+#: src/ui/settings.rs:179
+msgid "Authorize your personal app"
+msgstr ""
+
+#: src/ui/settings.rs:180
+msgid "Spotify opens in your browser to verify the account."
+msgstr ""
+
+#: src/ui/settings.rs:182
+msgid "Authorize"
+msgstr ""
+
+#: src/ui/settings.rs:191
+msgid "Remove personal app"
+msgstr ""
+
+#: src/ui/settings.rs:192
+msgid "Shared access remains signed in."
+msgstr ""
+
+#: src/ui/settings.rs:202
+msgid "Playback on this computer"
+msgstr ""
+
+#: src/ui/settings.rs:205
+msgid "Ready"
+msgstr ""
+
+#: src/ui/settings.rs:206
+msgid "This computer is a Spotify Connect device."
+msgstr ""
+
+#: src/ui/settings.rs:210
+msgid "Setting up"
+msgstr ""
+
+#: src/ui/settings.rs:211
+msgid "Finish authorizing in your browser."
+msgstr ""
+
+#: src/ui/settings.rs:215
+msgid "Connecting"
+msgstr ""
+
+#: src/ui/settings.rs:221
+msgid "Unavailable"
+msgstr ""
+
+#: src/ui/settings.rs:227
+msgid "Not set up"
+msgstr ""
+
+#: src/ui/settings.rs:228
+msgid "Requires Spotify Premium and a one-time browser sign-in."
+msgstr ""
+
+#: src/ui/settings.rs:229
+msgid "Enable playback here"
+msgstr ""
+
+#: src/ui/settings.rs:232
+#, rust-format
+msgid "Status: {status}"
+msgstr ""
+
+#: src/ui/settings.rs:239
+msgid "Reconnect"
+msgstr ""
+
+#: src/ui/settings.rs:248
+msgid "Device name"
+msgstr ""
+
+#: src/ui/settings.rs:249
+msgid "How this computer appears in Spotify Connect."
+msgstr ""
+
+#: src/ui/settings.rs:273
+msgid "Audio quality"
+msgstr ""
+
+#: src/ui/settings.rs:274
+msgid "Higher bitrates use more data and cache space."
+msgstr ""
+
+#: src/ui/settings.rs:279
+msgid "Very high · 320 kbps"
+msgstr ""
+
+#: src/ui/settings.rs:280
+msgid "High · 160 kbps"
+msgstr ""
+
+#: src/ui/settings.rs:281
+msgid "Normal · 96 kbps"
+msgstr ""
+
+#: src/ui/settings.rs:304 src/ui/settings.rs:310
+msgid "Normalize volume"
+msgstr ""
+
+#: src/ui/settings.rs:305
+msgid "Keep loud and quiet tracks at a similar level."
+msgstr ""
+
+#: src/ui/settings.rs:323 src/ui/settings.rs:326
+msgid "Autoplay"
+msgstr ""
+
+#: src/ui/settings.rs:324
+msgid "Keep playing similar songs when your music ends."
+msgstr ""
+
+#: src/ui/settings.rs:335 src/ui/settings.rs:338
+msgid "Gapless playback"
+msgstr ""
+
+#: src/ui/settings.rs:336
+msgid "Play tracks without silence between them."
+msgstr ""
+
+#: src/ui/settings.rs:349 src/ui/settings.rs:358
+msgid "Keep music playing when the window closes"
+msgstr ""
+
+#: src/ui/settings.rs:351
+msgid ""
+"Fastpotify hides to the system tray. Quit from the tray menu or with Ctrl+Q."
+msgstr ""
+
+#: src/ui/settings.rs:352
+msgid ""
+"Fastpotify hides to the system tray. Quit from the tray menu or with Cmd+Q."
+msgstr ""
+
+#: src/ui/settings.rs:370 src/ui/settings.rs:376
+msgid "Automatic update checks"
+msgstr ""
+
+#: src/ui/settings.rs:371
+msgid "Checks GitHub once a day. No personal data is sent."
+msgstr ""
+
+#: src/ui/settings.rs:389
+msgid "Audio output"
+msgstr ""
+
+#: src/ui/settings.rs:390
+msgid "PulseAudio also covers PipeWire. Rodio talks to ALSA directly."
+msgstr ""
+
+#: src/ui/settings.rs:400
+msgid "PulseAudio / PipeWire"
+msgstr ""
+
+#: src/ui/settings.rs:402
+msgid "ALSA (rodio)"
+msgstr ""
+
+#: src/ui/settings.rs:421
+msgid "Output buffer"
+msgstr ""
+
+#: src/ui/settings.rs:443 src/ui/settings.rs:449 src/ui/settings.rs:1073
+msgid "Audio cache"
+msgstr ""
+
+#: src/ui/settings.rs:444
+msgid "Save downloaded audio for later playback."
+msgstr ""
+
+#: src/ui/settings.rs:480
+msgid "Apply and restart playback"
+msgstr ""
+
+#: src/ui/settings.rs:487
+msgid "Restart local playback to apply these settings."
+msgstr ""
+
+#: src/ui/settings.rs:490
+msgid "Playback settings applied."
+msgstr ""
+
+#: src/ui/settings.rs:495
+msgid "Appearance"
+msgstr ""
+
+#: src/ui/settings.rs:499 src/ui/settings.rs:686
+msgid "Language"
+msgstr ""
+
+#: src/ui/settings.rs:500 src/ui/settings.rs:687
+msgid "Automatic follows your system's language."
+msgstr ""
+
+#: src/ui/settings.rs:531
+msgid "Theme"
+msgstr ""
+
+#: src/ui/settings.rs:551
+msgid "Accent color"
+msgstr ""
+
+#: src/ui/settings.rs:575 src/ui/settings.rs:581
+msgid "Colour from album art"
+msgstr ""
+
+#: src/ui/settings.rs:576
+msgid "Use the current cover's colour on pages and the player bar."
+msgstr ""
+
+#: src/ui/settings.rs:593 src/ui/settings.rs:599
+msgid "Compact library sidebar"
+msgstr ""
+
+#: src/ui/settings.rs:594
+msgid "Show names without covers in the sidebar."
+msgstr ""
+
+#: src/ui/settings.rs:611 src/ui/settings.rs:617
+msgid "Compact track list"
+msgstr ""
+
+#: src/ui/settings.rs:612
+msgid "Show each track on one line without a cover."
+msgstr ""
+
+#: src/ui/settings.rs:629
+msgid "Interface zoom"
+msgstr ""
+
+#: src/ui/settings.rs:631
+msgid "Ctrl+Plus and Ctrl+Minus work anywhere; Ctrl+0 resets."
+msgstr ""
+
+#: src/ui/settings.rs:632
+msgid "Cmd+Plus and Cmd+Minus work anywhere; Cmd+0 resets."
+msgstr ""
+
+#: src/ui/settings.rs:660
+msgid "Lyrics translation"
+msgstr ""
+
+#: src/ui/settings.rs:735
+msgid "Translation server"
+msgstr ""
+
+#: src/ui/settings.rs:736
+msgid ""
+"Empty uses the official libretranslate.com, which requires the API key below."
+msgstr ""
+
+#: src/ui/settings.rs:771 src/ui/settings.rs:787
+msgid "API key"
+msgstr ""
+
+#: src/ui/settings.rs:772
+msgid "Only needed for the official libretranslate.com server."
+msgstr ""
+
+#: src/ui/settings.rs:805 src/ui/settings.rs:809
+msgid "Mini player"
+msgstr ""
+
+#: src/ui/settings.rs:810
+msgid "A small, resizable now-playing bar with cover, controls, and lyrics."
+msgstr ""
+
+#: src/ui/settings.rs:812
+msgid "Switch to it"
+msgstr ""
+
+#: src/ui/settings.rs:820 src/ui/settings.rs:824
+msgid "Always on top"
+msgstr ""
+
+#: src/ui/settings.rs:821
+msgid "Keep the mini player above everything else."
+msgstr ""
+
+#: src/ui/settings.rs:833
+msgid "Show in taskbar"
+msgstr ""
+
+#: src/ui/settings.rs:838
+msgid "Show mini player in taskbar"
+msgstr ""
+
+#: src/ui/settings.rs:855
+msgid "MilkDrop"
+msgstr ""
+
+#: src/ui/settings.rs:859 src/ui/settings.rs:866
+msgid "MilkDrop window"
+msgstr ""
+
+#: src/ui/settings.rs:878
+msgid "Presets"
+msgstr ""
+
+#: src/ui/settings.rs:882
+msgid "None yet"
+msgstr ""
+
+#: src/ui/settings.rs:883
+msgid "One preset"
+msgstr ""
+
+#: src/ui/settings.rs:896
+msgid "Fetching..."
+msgstr ""
+
+#: src/ui/settings.rs:907
+msgid "Open folder"
+msgstr ""
+
+#: src/ui/settings.rs:917
+msgid "Time per preset"
+msgstr ""
+
+#: src/ui/settings.rs:918
+msgid "How long each preset plays before the next fades in."
+msgstr ""
+
+#: src/ui/settings.rs:933
+msgid "Frame rate"
+msgstr ""
+
+#: src/ui/settings.rs:935
+msgid "Lower rates use fewer resources. Uncapped draws as fast as possible."
+msgstr ""
+
+#: src/ui/settings.rs:994
+msgid "Resolution"
+msgstr ""
+
+#: src/ui/settings.rs:995
+msgid "Half and Quarter use fewer resources and scale the image back up."
+msgstr ""
+
+#: src/ui/settings.rs:1000
+msgid "Full"
+msgstr ""
+
+#: src/ui/settings.rs:1000
+msgid "Half"
+msgstr ""
+
+#: src/ui/settings.rs:1000
+msgid "Quarter"
+msgstr ""
+
+#: src/ui/settings.rs:1012 src/ui/settings.rs:1016 src/ui/settings.rs:1020
+msgid "Equalizer"
+msgstr ""
+
+#: src/ui/settings.rs:1044
+msgid "Pre"
+msgstr ""
+
+#: src/ui/settings.rs:1056
+msgid "Storage"
+msgstr ""
+
+#: src/ui/settings.rs:1060
+msgid "Artwork cache"
+msgstr ""
+
+#: src/ui/settings.rs:1063
+msgid "Clear artwork"
+msgstr ""
+
+#: src/ui/settings.rs:1080
+msgid "Play history"
+msgstr ""
+
+#: src/ui/settings.rs:1086
+msgid "Clear history"
+msgstr ""
+
+#: src/ui/settings.rs:1096
+msgid "Sign-in"
+msgstr ""
+
+#: src/ui/settings.rs:1097
+msgid "Sign-ins are saved in the system credential store when available."
+msgstr ""
+
+#: src/ui/settings.rs:1102 src/ui/show.rs:100
+msgid "About"
+msgstr ""
+
+#: src/ui/settings.rs:1115
+msgid "Built with Rust, egui, and librespot. Not affiliated with Spotify."
+msgstr ""
+
+#: src/ui/settings.rs:1125
+msgid "Checking…"
+msgstr ""
+
+#: src/ui/settings.rs:1127
+msgid "Check for updates"
+msgstr ""
+
+#: src/ui/settings.rs:1139
+msgid "Source code"
+msgstr ""
+
+#: src/ui/show.rs:37
+msgid "Podcast"
+msgstr ""
+
+#: src/ui/show.rs:64
+msgid "Play latest episode"
+msgstr ""
+
+#: src/ui/show.rs:81
+msgid "Follow podcast"
+msgstr ""
+
+#: src/ui/show.rs:115
+msgid "All episodes"
+msgstr ""
+
+#: src/ui/show.rs:303
+msgid "Played"
+msgstr ""
+
+#: src/ui/sidebar.rs:91
+msgid "Library order"
+msgstr "Порядок медиатеки"
+
+#: src/ui/sidebar.rs:94
+msgid "Recently added"
+msgstr "Недавно добавленные"
+
+#: src/ui/sidebar.rs:95
+msgid "Local custom order"
+msgstr "Свой локальный порядок"
+
+#: src/ui/sidebar.rs:96
+msgid "Spotify custom order"
+msgstr "Свой порядок Spotify"
+
+#: src/ui/sidebar.rs:546
+msgid "Library"
+msgstr "Медиатека"
+
+#: src/ui/sidebar.rs:556
+msgid "Hide sidebar (Ctrl+B)"
+msgstr "Скрыть боковую панель (Ctrl+B)"
+
+#: src/ui/sidebar.rs:557
+msgid "Hide sidebar (Cmd+B)"
+msgstr "Скрыть боковую панель (Cmd+B)"
+
+#: src/ui/sidebar.rs:571
+msgid "Create a playlist"
+msgstr "Создать плейлист"
+
+#: src/ui/sidebar.rs:587
+msgid "Search Your Library"
+msgstr "Поиск в медиатеке"
+
+#: src/ui/sidebar.rs:628
+msgid "Search in Your Library"
+msgstr "Искать в медиатеке"
+
+#: src/ui/topbar.rs:84
+msgid "Show sidebar (Ctrl+B)"
+msgstr ""
+
+#: src/ui/topbar.rs:85
+msgid "Show sidebar (Cmd+B)"
+msgstr ""
+
+#: src/ui/topbar.rs:109
+msgid "Back"
+msgstr ""
+
+#: src/ui/topbar.rs:120
+msgid "Forward"
+msgstr ""
+
+#: src/ui/topbar.rs:137
+msgid "What do you want to play?"
+msgstr ""
+
+#: src/ui/topbar.rs:291
+msgid "MilkDrop visualiser (Ctrl+Shift+K)"
+msgstr ""
+
+#: src/ui/topbar.rs:292
+msgid "MilkDrop visualiser (Cmd+Shift+K)"
+msgstr ""
+
+#: src/ui/topbar.rs:306
+msgid "Mini player (Ctrl+M)"
+msgstr ""
+
+#: src/ui/topbar.rs:307
+msgid "Mini player (Cmd+Shift+M)"
+msgstr ""
+
+#: src/ui/topbar.rs:322
+msgid "Waiting for Spotify…"
+msgstr ""
+
+#: src/ui/topbar.rs:330
+#, rust-format
+msgid "Playing on {device}"
+msgstr ""
+
+#: src/ui/topbar.rs:332
+msgid "Playing on another device"
+msgstr ""
+
+#: src/ui/topbar.rs:367
+#, rust-format
+msgid "Update to {version}"
+msgstr ""
+
+#: src/ui/topbar.rs:397
+#, rust-format
+msgid "Version {version} is available. Open the download page."
+msgstr ""

@@ -3,9 +3,9 @@
 use egui::{Align, CornerRadius, Frame, Layout, Margin, Stroke};
 
 use crate::app::App;
-use crate::tr;
 use crate::model::{Action, Dialog};
 use crate::theme;
+use crate::tr;
 
 pub fn show(app: &mut App, ctx: &egui::Context) {
     let Some(dialog) = app.dialog.clone() else {
@@ -289,14 +289,36 @@ fn create_playlist(app: &mut App, ui: &mut egui::Ui) {
     else {
         return;
     };
-    theme::text(ui, tr!(app.locale, "New playlist").into_owned(), theme::bold(20.0), palette.text);
+    theme::text(
+        ui,
+        tr!(app.locale, "New playlist").into_owned(),
+        theme::bold(20.0),
+        palette.text,
+    );
     ui.add_space(12.0);
-    theme::text(ui, tr!(app.locale, "Name").into_owned(), theme::medium(13.0), palette.secondary);
-    let field = text_field(ui, &palette, "playlist-name", name, &tr!(app.locale, "My playlist"), true);
+    theme::text(
+        ui,
+        tr!(app.locale, "Name").into_owned(),
+        theme::medium(13.0),
+        palette.secondary,
+    );
+    let field = text_field(
+        ui,
+        &palette,
+        "playlist-name",
+        name,
+        &tr!(app.locale, "My playlist"),
+        true,
+    );
     ui.add_space(10.0);
     ui.horizontal(|ui| {
         super::widgets::switch(ui, &palette, &tr!(app.locale, "Public playlist"), public);
-        theme::text(ui, tr!(app.locale, "Public playlist").into_owned(), theme::regular(14.0), palette.text);
+        theme::text(
+            ui,
+            tr!(app.locale, "Public playlist").into_owned(),
+            theme::regular(14.0),
+            palette.text,
+        );
     });
     if !add_uris.is_empty() {
         ui.add_space(6.0);
@@ -320,7 +342,9 @@ fn create_playlist(app: &mut App, ui: &mut egui::Ui) {
         if busy {
             theme::spinner(ui, 18.0, palette.accent);
         } else {
-            let create = theme::pill_button(ui, &palette, &tr!(app.locale, "Create"), true).clicked() || submit;
+            let create = theme::pill_button(ui, &palette, &tr!(app.locale, "Create"), true)
+                .clicked()
+                || submit;
             if create && !name_value.is_empty() {
                 app.actions.push(Action::CreatePlaylist {
                     name: name_value.clone(),
@@ -347,12 +371,34 @@ fn edit_playlist(app: &mut App, ui: &mut egui::Ui) {
     else {
         return;
     };
-    theme::text(ui, tr!(app.locale, "Edit details").into_owned(), theme::bold(20.0), palette.text);
+    theme::text(
+        ui,
+        tr!(app.locale, "Edit details").into_owned(),
+        theme::bold(20.0),
+        palette.text,
+    );
     ui.add_space(12.0);
-    theme::text(ui, tr!(app.locale, "Name").into_owned(), theme::medium(13.0), palette.secondary);
-    text_field(ui, &palette, "edit-name", name, &tr!(app.locale, "Playlist name"), true);
+    theme::text(
+        ui,
+        tr!(app.locale, "Name").into_owned(),
+        theme::medium(13.0),
+        palette.secondary,
+    );
+    text_field(
+        ui,
+        &palette,
+        "edit-name",
+        name,
+        &tr!(app.locale, "Playlist name"),
+        true,
+    );
     ui.add_space(10.0);
-    theme::text(ui, tr!(app.locale, "Description").into_owned(), theme::medium(13.0), palette.secondary);
+    theme::text(
+        ui,
+        tr!(app.locale, "Description").into_owned(),
+        theme::medium(13.0),
+        palette.secondary,
+    );
     Frame::new()
         .fill(palette.surface)
         .corner_radius(CornerRadius::same(6))
@@ -361,7 +407,10 @@ fn edit_playlist(app: &mut App, ui: &mut egui::Ui) {
             ui.add(
                 egui::TextEdit::multiline(description)
                     .id(egui::Id::new("edit-description"))
-                    .hint_text(egui::RichText::new(tr!(app.locale, "Optional description").into_owned()).color(palette.dim))
+                    .hint_text(
+                        egui::RichText::new(tr!(app.locale, "Optional description").into_owned())
+                            .color(palette.dim),
+                    )
                     .font(theme::regular(14.0))
                     .frame(egui::Frame::NONE)
                     .desired_rows(3)
@@ -371,7 +420,12 @@ fn edit_playlist(app: &mut App, ui: &mut egui::Ui) {
     ui.add_space(10.0);
     ui.horizontal(|ui| {
         super::widgets::switch(ui, &palette, &tr!(app.locale, "Public playlist"), public);
-        theme::text(ui, tr!(app.locale, "Public playlist").into_owned(), theme::regular(14.0), palette.text);
+        theme::text(
+            ui,
+            tr!(app.locale, "Public playlist").into_owned(),
+            theme::regular(14.0),
+            palette.text,
+        );
     });
     ui.add_space(20.0);
     let id = id.clone();
@@ -382,7 +436,9 @@ fn edit_playlist(app: &mut App, ui: &mut egui::Ui) {
         if busy {
             theme::spinner(ui, 18.0, palette.accent);
         } else {
-            if theme::pill_button(ui, &palette, &tr!(app.locale, "Save"), true).clicked() && !name_value.is_empty() {
+            if theme::pill_button(ui, &palette, &tr!(app.locale, "Save"), true).clicked()
+                && !name_value.is_empty()
+            {
                 app.actions.push(Action::UpdatePlaylist {
                     id: id.clone(),
                     name: name_value.clone(),

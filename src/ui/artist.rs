@@ -56,7 +56,13 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 18.0;
                 if app.play_pending(&artist.uri) {
-                    theme::circle_spinner(ui, 56.0, palette.accent, palette.on_accent, &tr!(app.locale, "Starting…"));
+                    theme::circle_spinner(
+                        ui,
+                        56.0,
+                        palette.accent,
+                        palette.on_accent,
+                        &tr!(app.locale, "Starting…"),
+                    );
                 } else if theme::circle_button(
                     ui,
                     Icon::PlayFilled,
@@ -235,7 +241,15 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                         theme::subtle(ui, &palette, &tr!(app.locale, "Nothing in this category."));
                     } else if list.can_load_more() {
                         ui.add_space(8.0);
-                        if theme::soft_button(ui, &palette, None, &tr!(app.locale, "Load more"), false).clicked() {
+                        if theme::soft_button(
+                            ui,
+                            &palette,
+                            None,
+                            &tr!(app.locale, "Load more"),
+                            false,
+                        )
+                        .clicked()
+                        {
                             app.actions
                                 .push(Action::LoadMoreArtistAlbums(id.to_string()));
                         }
@@ -249,42 +263,48 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
             if let Loadable::Loaded(related) = &page.related
                 && !related.is_empty()
             {
-                widgets::shelf(ui, &palette, "related", &tr!(app.locale, "Fans also like"), |ui| {
-                    for artist in related {
-                        let card = widgets::card(
-                            ui,
-                            app,
-                            pick_image(&artist.images, 300),
-                            &artist.name,
-                            &tr!(app.locale, "Artist"),
-                            true,
-                            true,
-                        );
-                        if card.play {
-                            app.actions.push(Action::PlayContext {
-                                uri: artist.uri.clone(),
-                                offset_uri: None,
-                                offset_index: None,
-                            });
+                widgets::shelf(
+                    ui,
+                    &palette,
+                    "related",
+                    &tr!(app.locale, "Fans also like"),
+                    |ui| {
+                        for artist in related {
+                            let card = widgets::card(
+                                ui,
+                                app,
+                                pick_image(&artist.images, 300),
+                                &artist.name,
+                                &tr!(app.locale, "Artist"),
+                                true,
+                                true,
+                            );
+                            if card.play {
+                                app.actions.push(Action::PlayContext {
+                                    uri: artist.uri.clone(),
+                                    offset_uri: None,
+                                    offset_index: None,
+                                });
+                            }
+                            if card.clicked {
+                                app.actions
+                                    .push(Action::Open(Page::Artist(artist.id.clone())));
+                            }
+                            egui::Popup::context_menu(&card.response)
+                                .id(ui.make_persistent_id(("related-artist-menu", &artist.uri)))
+                                .frame(widgets::menu_frame(&palette))
+                                .show(|ui| {
+                                    widgets::context_menu_items(
+                                        ui,
+                                        app,
+                                        &artist.uri,
+                                        &artist.name,
+                                        None,
+                                    )
+                                });
                         }
-                        if card.clicked {
-                            app.actions
-                                .push(Action::Open(Page::Artist(artist.id.clone())));
-                        }
-                        egui::Popup::context_menu(&card.response)
-                            .id(ui.make_persistent_id(("related-artist-menu", &artist.uri)))
-                            .frame(widgets::menu_frame(&palette))
-                            .show(|ui| {
-                                widgets::context_menu_items(
-                                    ui,
-                                    app,
-                                    &artist.uri,
-                                    &artist.name,
-                                    None,
-                                )
-                            });
-                    }
-                });
+                    },
+                );
             }
         }
         Loadable::Loading | Loadable::NotLoaded => {

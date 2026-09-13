@@ -29,6 +29,16 @@ fn compiled_po_omits_unfinished_messages_and_uses_locale_plural_rules() {
     }
 }
 
+/// Locales whose catalog is expected to be complete.
+///
+/// The pilot was 24 messages and every catalog carried all of them. Marking
+/// the rest of the interface took the template past 280, so the others are
+/// filled in as translators get to them; an empty `msgstr` is compiled out
+/// and falls back to the English source, which is the whole point of the
+/// fallback and is checked by the test above. What must not regress is that a
+/// catalog claiming to be complete stays complete.
+const COMPLETE: &[&str] = &["es"];
+
 #[test]
 fn all_pilot_catalogs_cover_the_template_and_preserve_count_placeholders() {
     // A POT leaves these values for msginit. For this comparison its source
@@ -45,6 +55,9 @@ fn all_pilot_catalogs_cover_the_template_and_preserve_count_placeholders() {
             continue;
         }
         catalogs += 1;
+        let complete = path
+            .file_stem()
+            .is_some_and(|stem| COMPLETE.contains(&&*stem.to_string_lossy()));
         let translated_catalog = polib::po_file::parse(&path).unwrap();
         assert_eq!(
             template.count(),
@@ -63,10 +76,33 @@ fn all_pilot_catalogs_cover_the_template_and_preserve_count_placeholders() {
                     translated_catalog.metadata.plural_rules.nplurals
                 );
                 for form in forms {
-                    assert_eq!(form.matches("{count}").count(), 1);
+                    // An untranslated plural is left empty for the fallback;
+                    // a translated one has to keep the count it is counting.
+                    if !form.is_empty() {
+                        assert_eq!(form.matches("{count}").count(), 1);
+                    }
                 }
             } else {
-                assert!(!translated.msgstr().unwrap().is_empty());
+                let text = translated.msgstr().unwrap();
+                assert!(
+                    !complete || !text.is_empty(),
+                    "{} claims to be complete but {:?} is untranslated",
+                    path.display(),
+                    source.msgid()
+                );
+                // A placeholder dropped in translation is a crash waiting to
+                // happen, whether or not the rest of the catalog is filled.
+                for placeholder in ["{count}", "{query}", "{status}", "{device}", "{version}"] {
+                    if source.msgid().contains(placeholder) && !text.is_empty() {
+                        assert_eq!(
+                            text.matches(placeholder).count(),
+                            1,
+                            "{} lost {placeholder} in {:?}",
+                            path.display(),
+                            source.msgid()
+                        );
+                    }
+                }
             }
         }
     }

@@ -218,9 +218,17 @@ fn now_playing_block(app: &mut App, ui: &mut egui::Ui, region: Rect, now: Option
     if !now.is_episode {
         let saved = app.is_saved(&now.uri).unwrap_or(false);
         let (icon, color, tooltip) = if saved {
-            (Icon::HeartFilled, palette.accent, &tr!(app.locale, "Remove from Liked Songs"))
+            (
+                Icon::HeartFilled,
+                palette.accent,
+                &tr!(app.locale, "Remove from Liked Songs"),
+            )
         } else {
-            (Icon::Heart, palette.secondary, &tr!(app.locale, "Save to Liked Songs"))
+            (
+                Icon::Heart,
+                palette.secondary,
+                &tr!(app.locale, "Save to Liked Songs"),
+            )
         };
         // Sit the heart just past the actual text, not at the region's far
         // edge, so it stays visually attached to the title.
@@ -308,7 +316,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
             egui::WidgetType::Checkbox,
             cell.is_enabled(),
             shuffle,
-            &tr!(app.locale, "Shuffle"),
+            tr!(app.locale, "Shuffle"),
         )
     });
     if shuffle_button.clicked() {

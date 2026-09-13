@@ -102,7 +102,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             ui,
             &palette,
             &tr!(locale, "Personal Spotify app"),
-            "Use a personal Development Mode app for a separate API quota. The shared app stays active.",
+            &tr!(
+                locale,
+                "Use a personal Development Mode app for a separate API quota. The shared app stays active."
+            ),
             |ui| {
                 let response = Frame::new()
                     .fill(palette.surface)
@@ -112,7 +115,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                         ui.add(
                             egui::TextEdit::singleline(&mut client_id)
                                 .id(egui::Id::new("personal-web-client-id"))
-                                .hint_text(egui::RichText::new(tr!(locale, "Client ID").into_owned()).color(palette.dim))
+                                .hint_text(
+                                    egui::RichText::new(tr!(locale, "Client ID").into_owned())
+                                        .color(palette.dim),
+                                )
                                 .font(theme::regular(13.0))
                                 .frame(egui::Frame::NONE)
                                 .desired_width(200.0),
@@ -137,7 +143,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             ui,
             &palette,
             &tr!(locale, "Create an app"),
-            &tr!(locale, "Create one for free in Spotify's developer dashboard."),
+            &tr!(
+                locale,
+                "Create one for free in Spotify's developer dashboard."
+            ),
             |ui| {
                 if theme::pill_button(ui, &palette, &tr!(locale, "Setup guide"), false).clicked() {
                     app.actions.push(Action::OpenUrl(
@@ -161,7 +170,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 ui,
                 &palette,
                 &tr!(locale, "Personal app ready"),
-                &tr!(locale, "Supported requests use your app. Other requests use the shared app."),
+                &tr!(
+                    locale,
+                    "Supported requests use your app. Other requests use the shared app."
+                ),
                 |ui| {
                     if theme::pill_button(ui, &palette, &tr!(locale, "Remove"), false).clicked() {
                         app.settings.web_client_id = None;
@@ -174,7 +186,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 ui,
                 &palette,
                 &tr!(locale, "Authorize your personal app"),
-                &tr!(locale, "Spotify opens in your browser to verify the account."),
+                &tr!(
+                    locale,
+                    "Spotify opens in your browser to verify the account."
+                ),
                 |ui| {
                     if theme::pill_button(ui, &palette, &tr!(locale, "Authorize"), true).clicked() {
                         app.actions.push(Action::ConfigurePersonalWebApp);
@@ -196,213 +211,110 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         }
     });
 
-    section(ui, &palette, &tr!(locale, "Playback on this computer"), |ui| {
-        let (status, detail, action) = match &app.local_playback {
-            crate::backend::LocalPlayback::Ready { .. } => (
-                tr!(locale, "Ready").into_owned(),
-                tr!(locale, "This computer is a Spotify Connect device.").into_owned(),
-                None,
-            ),
-            crate::backend::LocalPlayback::Authorizing => (
-                tr!(locale, "Setting up").into_owned(),
-                tr!(locale, "Finish authorizing in your browser.").into_owned(),
-                None,
-            ),
-            crate::backend::LocalPlayback::Connecting => (
-                tr!(locale, "Connecting").into_owned(),
-                tr!(locale, "Connecting to Spotify…").into_owned(),
-                None,
-            ),
-            crate::backend::LocalPlayback::Failed(message) => {
-                (
+    section(
+        ui,
+        &palette,
+        &tr!(locale, "Playback on this computer"),
+        |ui| {
+            let (status, detail, action) = match &app.local_playback {
+                crate::backend::LocalPlayback::Ready { .. } => (
+                    tr!(locale, "Ready").into_owned(),
+                    tr!(locale, "This computer is a Spotify Connect device.").into_owned(),
+                    None,
+                ),
+                crate::backend::LocalPlayback::Authorizing => (
+                    tr!(locale, "Setting up").into_owned(),
+                    tr!(locale, "Finish authorizing in your browser.").into_owned(),
+                    None,
+                ),
+                crate::backend::LocalPlayback::Connecting => (
+                    tr!(locale, "Connecting").into_owned(),
+                    tr!(locale, "Connecting to Spotify…").into_owned(),
+                    None,
+                ),
+                crate::backend::LocalPlayback::Failed(message) => (
                     tr!(locale, "Unavailable").into_owned(),
                     message.clone(),
                     Some(tr!(locale, "Try again").into_owned()),
-                )
-            }
-            crate::backend::LocalPlayback::Unavailable => (
-                tr!(locale, "Not set up").into_owned(),
-                tr!(locale, "Requires Spotify Premium and a one-time browser sign-in.").into_owned(),
-                Some(tr!(locale, "Enable playback here").into_owned()),
-            ),
-        };
-        let status = tr!(locale, "Status: {status}").replace("{status}", &status);
-        widgets::setting_row(ui, &palette, &status, &detail, |ui| {
-            if let Some(label) = action {
-                if theme::pill_button(ui, &palette, label.as_str(), true).clicked() {
-                    app.actions.push(Action::EnablePlayback);
-                }
-            } else if app.local_ready
-                && theme::soft_button(ui, &palette, Some(Icon::Refresh), &tr!(locale, "Reconnect"), false)
-                    .clicked()
-            {
-                app.actions.push(Action::RestartEngine);
-            }
-        });
-        widgets::setting_row(
-            ui,
-            &palette,
-            &tr!(locale, "Device name"),
-            &tr!(locale, "How this computer appears in Spotify Connect."),
-            |ui| {
-                let response = Frame::new()
-                    .fill(palette.surface)
-                    .corner_radius(CornerRadius::same(6))
-                    .inner_margin(Margin::symmetric(10, 6))
-                    .show(ui, |ui| {
-                        ui.add(
-                            egui::TextEdit::singleline(&mut app.settings.device_name)
-                                .font(theme::regular(14.0))
-                                .frame(egui::Frame::NONE)
-                                .desired_width(200.0),
-                        )
-                    })
-                    .inner;
-                if response.changed() {
-                    changed = true;
-                    playback_dirty = true;
-                }
-            },
-        );
-        widgets::setting_row(
-            ui,
-            &palette,
-            &tr!(locale, "Audio quality"),
-            &tr!(locale, "Higher bitrates use more data and cache space."),
-            |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 6.0;
-                    for (kbps, label) in [
-                        (320u16, &tr!(locale, "Very high · 320 kbps")),
-                        (160, &tr!(locale, "High · 160 kbps")),
-                        (96, &tr!(locale, "Normal · 96 kbps")),
-                    ] {
-                        if theme::soft_button(
-                            ui,
-                            &palette,
-                            None,
-                            label,
-                            app.settings.bitrate == kbps,
-                        )
-                        .clicked()
-                            && app.settings.bitrate != kbps
-                        {
-                            app.settings.bitrate = kbps;
-                            changed = true;
-                            playback_dirty = true;
-                        }
+                ),
+                crate::backend::LocalPlayback::Unavailable => (
+                    tr!(locale, "Not set up").into_owned(),
+                    tr!(
+                        locale,
+                        "Requires Spotify Premium and a one-time browser sign-in."
+                    )
+                    .into_owned(),
+                    Some(tr!(locale, "Enable playback here").into_owned()),
+                ),
+            };
+            let status = tr!(locale, "Status: {status}").replace("{status}", &status);
+            widgets::setting_row(ui, &palette, &status, &detail, |ui| {
+                if let Some(label) = action {
+                    if theme::pill_button(ui, &palette, label.as_str(), true).clicked() {
+                        app.actions.push(Action::EnablePlayback);
                     }
-                });
-            },
-        );
-        widgets::setting_row(
-            ui,
-            &palette,
-            &tr!(locale, "Normalize volume"),
-            &tr!(locale, "Keep loud and quiet tracks at a similar level."),
-            |ui| {
-                if widgets::switch(
-                    ui,
-                    &palette,
-                    &tr!(locale, "Normalize volume"),
-                    &mut app.settings.normalisation,
-                )
-                .changed()
+                } else if app.local_ready
+                    && theme::soft_button(
+                        ui,
+                        &palette,
+                        Some(Icon::Refresh),
+                        &tr!(locale, "Reconnect"),
+                        false,
+                    )
+                    .clicked()
                 {
-                    changed = true;
-                    playback_dirty = true;
+                    app.actions.push(Action::RestartEngine);
                 }
-            },
-        );
-        widgets::setting_row(
-            ui,
-            &palette,
-            &tr!(locale, "Autoplay"),
-            &tr!(locale, "Keep playing similar songs when your music ends."),
-            |ui| {
-                if widgets::switch(ui, &palette, &tr!(locale, "Autoplay"), &mut app.settings.autoplay).changed() {
-                    changed = true;
-                    playback_dirty = true;
-                }
-            },
-        );
-        widgets::setting_row(
-            ui,
-            &palette,
-            &tr!(locale, "Gapless playback"),
-            &tr!(locale, "Play tracks without silence between them."),
-            |ui| {
-                if widgets::switch(ui, &palette, &tr!(locale, "Gapless playback"), &mut app.settings.gapless)
-                    .changed()
-                {
-                    changed = true;
-                    playback_dirty = true;
-                }
-            },
-        );
-        widgets::setting_row(
-            ui,
-            &palette,
-            &tr!(locale, "Keep music playing when the window closes"),
-            super::keys::platform_shortcut(
-                &tr!(locale, "Fastpotify hides to the system tray. Quit from the tray menu or with Ctrl+Q."),
-                &tr!(locale, "Fastpotify hides to the system tray. Quit from the tray menu or with Cmd+Q."),
-            ),
-            |ui| {
-                if widgets::switch(
-                    ui,
-                    &palette,
-                    &tr!(locale, "Keep music playing when the window closes"),
-                    &mut app.settings.keep_playing_in_background,
-                )
-                .changed()
-                {
-                    changed = true;
-                }
-            },
-        );
-        widgets::setting_row(
-            ui,
-            &palette,
-            &tr!(locale, "Automatic update checks"),
-            &tr!(locale, "Checks GitHub once a day. No personal data is sent."),
-            |ui| {
-                if widgets::switch(
-                    ui,
-                    &palette,
-                    &tr!(locale, "Automatic update checks"),
-                    &mut app.settings.check_for_updates,
-                )
-                .changed()
-                {
-                    changed = true;
-                }
-            },
-        );
-        if cfg!(target_os = "linux") {
+            });
             widgets::setting_row(
                 ui,
                 &palette,
-                &tr!(locale, "Audio output"),
-                &tr!(locale, "PulseAudio also covers PipeWire. Rodio talks to ALSA directly."),
+                &tr!(locale, "Device name"),
+                &tr!(locale, "How this computer appears in Spotify Connect."),
                 |ui| {
-                    let current = app
-                        .settings
-                        .platform_backend()
-                        .unwrap_or_else(|| "rodio".into());
+                    let response = Frame::new()
+                        .fill(palette.surface)
+                        .corner_radius(CornerRadius::same(6))
+                        .inner_margin(Margin::symmetric(10, 6))
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::TextEdit::singleline(&mut app.settings.device_name)
+                                    .font(theme::regular(14.0))
+                                    .frame(egui::Frame::NONE)
+                                    .desired_width(200.0),
+                            )
+                        })
+                        .inner;
+                    if response.changed() {
+                        changed = true;
+                        playback_dirty = true;
+                    }
+                },
+            );
+            widgets::setting_row(
+                ui,
+                &palette,
+                &tr!(locale, "Audio quality"),
+                &tr!(locale, "Higher bitrates use more data and cache space."),
+                |ui| {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 6.0;
-                        for backend in ["rodio", "pulseaudio"] {
-                            let label = if backend == "pulseaudio" {
-                                &tr!(locale, "PulseAudio / PipeWire")
-                            } else {
-                                &tr!(locale, "ALSA (rodio)")
-                            };
-                            if theme::soft_button(ui, &palette, None, label, current == backend)
-                                .clicked()
-                                && current != backend
+                        for (kbps, label) in [
+                            (320u16, &tr!(locale, "Very high · 320 kbps")),
+                            (160, &tr!(locale, "High · 160 kbps")),
+                            (96, &tr!(locale, "Normal · 96 kbps")),
+                        ] {
+                            if theme::soft_button(
+                                ui,
+                                &palette,
+                                None,
+                                label,
+                                app.settings.bitrate == kbps,
+                            )
+                            .clicked()
+                                && app.settings.bitrate != kbps
                             {
-                                app.settings.audio_backend = Some(backend.to_string());
+                                app.settings.bitrate = kbps;
                                 changed = true;
                                 playback_dirty = true;
                             }
@@ -410,84 +322,238 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     });
                 },
             );
-        }
-        #[cfg(windows)]
-        widgets::setting_row(
-            ui,
-            &palette,
-            &tr!(locale, "Output buffer"),
-            "More buffering can prevent clicks on busy computers. Less buffering makes controls respond sooner.",
-            |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 6.0;
-                    let current = app.settings.audio_buffer_ms;
-                    for ms in [50u32, 100, 200] {
-                        let label = format!("{ms} ms");
-                        if theme::soft_button(ui, &palette, None, &label, current == ms).clicked()
-                            && current != ms
-                        {
-                            app.settings.audio_buffer_ms = ms;
-                            changed = true;
-                            playback_dirty = true;
-                        }
-                    }
-                });
-            },
-        );
-        widgets::setting_row(
-            ui,
-            &palette,
-            &tr!(locale, "Audio cache"),
-            &tr!(locale, "Save downloaded audio for later playback."),
-            |ui| {
-                // The control area lays out right-to-left: add the rightmost item first.
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 6.0;
-                    if widgets::switch(ui, &palette, &tr!(locale, "Audio cache"), &mut app.settings.audio_cache)
-                        .changed()
+            widgets::setting_row(
+                ui,
+                &palette,
+                &tr!(locale, "Normalize volume"),
+                &tr!(locale, "Keep loud and quiet tracks at a similar level."),
+                |ui| {
+                    if widgets::switch(
+                        ui,
+                        &palette,
+                        &tr!(locale, "Normalize volume"),
+                        &mut app.settings.normalisation,
+                    )
+                    .changed()
                     {
                         changed = true;
                         playback_dirty = true;
                     }
-                    if app.settings.audio_cache {
-                        ui.add_space(6.0);
-                        for (mb, label) in [(4096u64, "4 GB"), (1024, "1 GB"), (512, "512 MB")] {
-                            if theme::soft_button(
-                                ui,
-                                &palette,
-                                None,
-                                label,
-                                app.settings.audio_cache_mb == mb,
-                            )
-                            .clicked()
-                                && app.settings.audio_cache_mb != mb
+                },
+            );
+            widgets::setting_row(
+                ui,
+                &palette,
+                &tr!(locale, "Autoplay"),
+                &tr!(locale, "Keep playing similar songs when your music ends."),
+                |ui| {
+                    if widgets::switch(
+                        ui,
+                        &palette,
+                        &tr!(locale, "Autoplay"),
+                        &mut app.settings.autoplay,
+                    )
+                    .changed()
+                    {
+                        changed = true;
+                        playback_dirty = true;
+                    }
+                },
+            );
+            widgets::setting_row(
+                ui,
+                &palette,
+                &tr!(locale, "Gapless playback"),
+                &tr!(locale, "Play tracks without silence between them."),
+                |ui| {
+                    if widgets::switch(
+                        ui,
+                        &palette,
+                        &tr!(locale, "Gapless playback"),
+                        &mut app.settings.gapless,
+                    )
+                    .changed()
+                    {
+                        changed = true;
+                        playback_dirty = true;
+                    }
+                },
+            );
+            widgets::setting_row(
+                ui,
+                &palette,
+                &tr!(locale, "Keep music playing when the window closes"),
+                super::keys::platform_shortcut(
+                    &tr!(
+                        locale,
+                        "Fastpotify hides to the system tray. Quit from the tray menu or with Ctrl+Q."
+                    ),
+                    &tr!(
+                        locale,
+                        "Fastpotify hides to the system tray. Quit from the tray menu or with Cmd+Q."
+                    ),
+                ),
+                |ui| {
+                    if widgets::switch(
+                        ui,
+                        &palette,
+                        &tr!(locale, "Keep music playing when the window closes"),
+                        &mut app.settings.keep_playing_in_background,
+                    )
+                    .changed()
+                    {
+                        changed = true;
+                    }
+                },
+            );
+            widgets::setting_row(
+                ui,
+                &palette,
+                &tr!(locale, "Automatic update checks"),
+                &tr!(
+                    locale,
+                    "Checks GitHub once a day. No personal data is sent."
+                ),
+                |ui| {
+                    if widgets::switch(
+                        ui,
+                        &palette,
+                        &tr!(locale, "Automatic update checks"),
+                        &mut app.settings.check_for_updates,
+                    )
+                    .changed()
+                    {
+                        changed = true;
+                    }
+                },
+            );
+            if cfg!(target_os = "linux") {
+                widgets::setting_row(
+                    ui,
+                    &palette,
+                    &tr!(locale, "Audio output"),
+                    &tr!(
+                        locale,
+                        "PulseAudio also covers PipeWire. Rodio talks to ALSA directly."
+                    ),
+                    |ui| {
+                        let current = app
+                            .settings
+                            .platform_backend()
+                            .unwrap_or_else(|| "rodio".into());
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 6.0;
+                            for backend in ["rodio", "pulseaudio"] {
+                                let label = if backend == "pulseaudio" {
+                                    &tr!(locale, "PulseAudio / PipeWire")
+                                } else {
+                                    &tr!(locale, "ALSA (rodio)")
+                                };
+                                if theme::soft_button(ui, &palette, None, label, current == backend)
+                                    .clicked()
+                                    && current != backend
+                                {
+                                    app.settings.audio_backend = Some(backend.to_string());
+                                    changed = true;
+                                    playback_dirty = true;
+                                }
+                            }
+                        });
+                    },
+                );
+            }
+            #[cfg(windows)]
+            widgets::setting_row(
+                ui,
+                &palette,
+                &tr!(locale, "Output buffer"),
+                "More buffering can prevent clicks on busy computers. Less buffering makes controls respond sooner.",
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 6.0;
+                        let current = app.settings.audio_buffer_ms;
+                        for ms in [50u32, 100, 200] {
+                            let label = format!("{ms} ms");
+                            if theme::soft_button(ui, &palette, None, &label, current == ms)
+                                .clicked()
+                                && current != ms
                             {
-                                app.settings.audio_cache_mb = mb;
+                                app.settings.audio_buffer_ms = ms;
                                 changed = true;
                                 playback_dirty = true;
                             }
                         }
+                    });
+                },
+            );
+            widgets::setting_row(
+                ui,
+                &palette,
+                &tr!(locale, "Audio cache"),
+                &tr!(locale, "Save downloaded audio for later playback."),
+                |ui| {
+                    // The control area lays out right-to-left: add the rightmost item first.
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 6.0;
+                        if widgets::switch(
+                            ui,
+                            &palette,
+                            &tr!(locale, "Audio cache"),
+                            &mut app.settings.audio_cache,
+                        )
+                        .changed()
+                        {
+                            changed = true;
+                            playback_dirty = true;
+                        }
+                        if app.settings.audio_cache {
+                            ui.add_space(6.0);
+                            for (mb, label) in [(4096u64, "4 GB"), (1024, "1 GB"), (512, "512 MB")]
+                            {
+                                if theme::soft_button(
+                                    ui,
+                                    &palette,
+                                    None,
+                                    label,
+                                    app.settings.audio_cache_mb == mb,
+                                )
+                                .clicked()
+                                    && app.settings.audio_cache_mb != mb
+                                {
+                                    app.settings.audio_cache_mb = mb;
+                                    changed = true;
+                                    playback_dirty = true;
+                                }
+                            }
+                        }
+                    });
+                },
+            );
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                if playback_dirty {
+                    if theme::pill_button(
+                        ui,
+                        &palette,
+                        &tr!(locale, "Apply and restart playback"),
+                        true,
+                    )
+                    .clicked()
+                    {
+                        app.actions.push(Action::RestartEngine);
+                        playback_dirty = false;
                     }
-                });
-            },
-        );
-        ui.add_space(4.0);
-        ui.horizontal(|ui| {
-            if playback_dirty {
-                if theme::pill_button(ui, &palette, &tr!(locale, "Apply and restart playback"), true).clicked() {
-                    app.actions.push(Action::RestartEngine);
-                    playback_dirty = false;
+                    theme::subtle(
+                        ui,
+                        &palette,
+                        &tr!(locale, "Restart local playback to apply these settings."),
+                    );
+                } else {
+                    theme::subtle(ui, &palette, &tr!(locale, "Playback settings applied."));
                 }
-                theme::subtle(
-                    ui,
-                    &palette,
-                    &tr!(locale, "Restart local playback to apply these settings."),
-                );
-            } else {
-                theme::subtle(ui, &palette, &tr!(locale, "Playback settings applied."));
-            }
-        });
-    });
+            });
+        },
+    );
 
     section(ui, &palette, &tr!(locale, "Appearance"), |ui| {
         widgets::setting_row(
@@ -570,7 +636,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             ui,
             &palette,
             &tr!(locale, "Colour from album art"),
-            &tr!(locale, "Use the current cover's colour on pages and the player bar."),
+            &tr!(
+                locale,
+                "Use the current cover's colour on pages and the player bar."
+            ),
             |ui| {
                 if widgets::switch(
                     ui,
@@ -625,8 +694,14 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             &palette,
             &tr!(locale, "Interface zoom"),
             super::keys::platform_shortcut(
-                &tr!(locale, "Ctrl+Plus and Ctrl+Minus work anywhere; Ctrl+0 resets."),
-                &tr!(locale, "Cmd+Plus and Cmd+Minus work anywhere; Cmd+0 resets."),
+                &tr!(
+                    locale,
+                    "Ctrl+Plus and Ctrl+Minus work anywhere; Ctrl+0 resets."
+                ),
+                &tr!(
+                    locale,
+                    "Cmd+Plus and Cmd+Minus work anywhere; Cmd+0 resets."
+                ),
             ),
             |ui| {
                 ui.horizontal(|ui| {
@@ -730,7 +805,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 ui,
                 &palette,
                 &tr!(locale, "Translation server"),
-                &tr!(locale, "Empty uses the official libretranslate.com, which requires the API key below."),
+                &tr!(
+                    locale,
+                    "Empty uses the official libretranslate.com, which requires the API key below."
+                ),
                 |ui| {
                     let mut url = app
                         .settings
@@ -766,7 +844,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 ui,
                 &palette,
                 &tr!(locale, "API key"),
-                &tr!(locale, "Only needed for the official libretranslate.com server."),
+                &tr!(
+                    locale,
+                    "Only needed for the official libretranslate.com server."
+                ),
                 |ui| {
                     let mut key = app
                         .settings
@@ -781,7 +862,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                             ui.add(
                                 egui::TextEdit::singleline(&mut key)
                                     .password(true)
-                                    .hint_text(egui::RichText::new(tr!(locale, "API key").into_owned()).color(palette.dim))
+                                    .hint_text(
+                                        egui::RichText::new(tr!(locale, "API key").into_owned())
+                                            .color(palette.dim),
+                                    )
                                     .font(theme::regular(13.0))
                                     .frame(egui::Frame::NONE)
                                     .desired_width(200.0),
@@ -804,7 +888,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             ui,
             &palette,
             &tr!(locale, "Mini player"),
-            &tr!(locale, "A small, resizable now-playing bar with cover, controls, and lyrics."),
+            &tr!(
+                locale,
+                "A small, resizable now-playing bar with cover, controls, and lyrics."
+            ),
             |ui| {
                 if theme::pill_button(ui, &palette, &tr!(locale, "Switch to it"), false).clicked() {
                     app.actions.push(Action::ToggleMiniPlayer);
@@ -818,7 +905,9 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             &tr!(locale, "Keep the mini player above everything else."),
             |ui| {
                 let mut on_top = app.settings.winamp_on_top;
-                if widgets::switch(ui, &palette, &tr!(locale, "Always on top"), &mut on_top).changed() {
+                if widgets::switch(ui, &palette, &tr!(locale, "Always on top"), &mut on_top)
+                    .changed()
+                {
                     app.actions.push(Action::ToggleWinampOnTop);
                 }
             },
@@ -831,8 +920,12 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 "Keep a taskbar button for the mini player. The tray icon stays available when hidden.",
                 |ui| {
                     let mut visible = app.settings.winamp_show_taskbar;
-                    let response =
-                        widgets::switch(ui, &palette, &tr!(locale, "Show mini player in taskbar"), &mut visible);
+                    let response = widgets::switch(
+                        ui,
+                        &palette,
+                        &tr!(locale, "Show mini player in taskbar"),
+                        &mut visible,
+                    );
                     if response.changed() {
                         app.actions.push(Action::SetWinampTaskbar(visible));
                     }
@@ -860,7 +953,9 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             ),
             |ui| {
                 let mut open = app.settings.milkdrop_open;
-                if widgets::switch(ui, &palette, &tr!(locale, "MilkDrop window"), &mut open).changed() {
+                if widgets::switch(ui, &palette, &tr!(locale, "MilkDrop window"), &mut open)
+                    .changed()
+                {
                     app.actions.push(Action::ToggleWinampMilkdrop);
                 }
             },
@@ -901,8 +996,14 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     app.actions.push(Action::DownloadMilkdropPack(index));
                 }
             }
-            if theme::soft_button(ui, &palette, Some(Icon::ExternalLink), &tr!(locale, "Open folder"), false)
-                .clicked()
+            if theme::soft_button(
+                ui,
+                &palette,
+                Some(Icon::ExternalLink),
+                &tr!(locale, "Open folder"),
+                false,
+            )
+            .clicked()
             {
                 app.actions.push(Action::OpenMilkdropFolder);
             }
@@ -912,7 +1013,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             ui,
             &palette,
             &tr!(locale, "Time per preset"),
-            &tr!(locale, "How long each preset plays before the next fades in."),
+            &tr!(
+                locale,
+                "How long each preset plays before the next fades in."
+            ),
             |ui| {
                 let mut seconds = app.settings.milkdrop_seconds.clamp(2, 300);
                 let slider = egui::Slider::new(&mut seconds, 2..=300)
@@ -929,8 +1033,11 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             &palette,
             &tr!(locale, "Frame rate"),
             &match screen_hz {
-                0 => tr!(locale, "Lower rates use fewer resources. Uncapped draws as fast as possible.")
-                    .into_owned(),
+                0 => tr!(
+                    locale,
+                    "Lower rates use fewer resources. Uncapped draws as fast as possible."
+                )
+                .into_owned(),
                 hz => format!(
                     "Your screen refreshes at {hz} Hz. Higher rates do not add visible frames. Uncapped draws as fast as possible."
                 ),
@@ -989,12 +1096,19 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             ui,
             &palette,
             &tr!(locale, "Resolution"),
-            &tr!(locale, "Half and Quarter use fewer resources and scale the image back up."),
+            &tr!(
+                locale,
+                "Half and Quarter use fewer resources and scale the image back up."
+            ),
             |ui| {
                 let current = app.settings.milkdrop_scale.max(1);
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 6.0;
-                    for (scale, label) in [(1u32, &tr!(locale, "Full")), (2, &tr!(locale, "Half")), (4, &tr!(locale, "Quarter"))] {
+                    for (scale, label) in [
+                        (1u32, &tr!(locale, "Full")),
+                        (2, &tr!(locale, "Half")),
+                        (4, &tr!(locale, "Quarter")),
+                    ] {
                         if theme::soft_button(ui, &palette, None, label, scale == current).clicked()
                             && scale != current
                         {
@@ -1057,8 +1171,14 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             &tr!(locale, "Artwork cache"),
             &format!("Stored in {}", app.dirs.art_cache_dir().display()),
             |ui| {
-                if theme::soft_button(ui, &palette, Some(Icon::Trash), &tr!(locale, "Clear artwork"), false)
-                    .clicked()
+                if theme::soft_button(
+                    ui,
+                    &palette,
+                    Some(Icon::Trash),
+                    &tr!(locale, "Clear artwork"),
+                    false,
+                )
+                .clicked()
                 {
                     app.actions.push(Action::ClearArtCache);
                 }
@@ -1080,8 +1200,14 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 app.dirs.history_file().display()
             ),
             |ui| {
-                if theme::soft_button(ui, &palette, Some(Icon::Trash), &tr!(locale, "Clear history"), false)
-                    .clicked()
+                if theme::soft_button(
+                    ui,
+                    &palette,
+                    Some(Icon::Trash),
+                    &tr!(locale, "Clear history"),
+                    false,
+                )
+                .clicked()
                 {
                     app.actions.push(Action::ClearPlayHistory);
                 }
@@ -1091,7 +1217,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             ui,
             &palette,
             &tr!(locale, "Sign-in"),
-            &tr!(locale, "Sign-ins are saved in the system credential store when available."),
+            &tr!(
+                locale,
+                "Sign-ins are saved in the system credential store when available."
+            ),
             |_| {},
         );
     });
@@ -1109,7 +1238,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 );
                 theme::text(
                     ui,
-                    tr!(locale, "Built with Rust, egui, and librespot. Not affiliated with Spotify."),
+                    tr!(
+                        locale,
+                        "Built with Rust, egui, and librespot. Not affiliated with Spotify."
+                    ),
                     theme::regular(13.0),
                     palette.secondary,
                 );
@@ -1128,13 +1260,25 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             {
                 app.actions.push(Action::CheckForUpdates);
             }
-            if theme::soft_button(ui, &palette, Some(Icon::Info), &tr!(locale, "Keyboard shortcuts"), false)
-                .clicked()
+            if theme::soft_button(
+                ui,
+                &palette,
+                Some(Icon::Info),
+                &tr!(locale, "Keyboard shortcuts"),
+                false,
+            )
+            .clicked()
             {
                 app.actions.push(Action::ShowDialog(Dialog::Shortcuts));
             }
-            if theme::soft_button(ui, &palette, Some(Icon::ExternalLink), &tr!(locale, "Source code"), false)
-                .clicked()
+            if theme::soft_button(
+                ui,
+                &palette,
+                Some(Icon::ExternalLink),
+                &tr!(locale, "Source code"),
+                false,
+            )
+            .clicked()
             {
                 ui.ctx()
                     .open_url(egui::OpenUrl::new_tab(env!("CARGO_PKG_REPOSITORY")));

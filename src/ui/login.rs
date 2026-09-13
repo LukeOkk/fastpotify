@@ -3,10 +3,10 @@
 use egui::{Align, CornerRadius, Frame, Layout, Margin, Stroke, Vec2};
 
 use crate::app::App;
-use crate::tr;
 use crate::backend::AuthStatus;
 use crate::model::Action;
 use crate::theme;
+use crate::tr;
 
 pub fn show(app: &mut App, ui: &mut egui::Ui, connecting: bool) {
     let palette = app.palette;
