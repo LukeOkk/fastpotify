@@ -898,20 +898,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 }
             },
         );
-        widgets::setting_row(
-            ui,
-            &palette,
-            &tr!(locale, "Always on top"),
-            &tr!(locale, "Keep the mini player above everything else."),
-            |ui| {
-                let mut on_top = app.settings.winamp_on_top;
-                if widgets::switch(ui, &palette, &tr!(locale, "Always on top"), &mut on_top)
-                    .changed()
-                {
-                    app.actions.push(Action::ToggleWinampOnTop);
-                }
-            },
-        );
         if app.windows_controls_visible() {
             widgets::setting_row(
                 ui,

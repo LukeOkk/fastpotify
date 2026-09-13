@@ -896,7 +896,6 @@ pub enum Action {
     InstallSkin(std::path::PathBuf),
     /// Screen pixels per skin pixel in the Winamp window.
     SetSkinScale(u8),
-    ToggleWinampOnTop,
     SetWinampTaskbar(bool),
     OpenSkinsFolder,
     /// Cycle bars, scope, and off.

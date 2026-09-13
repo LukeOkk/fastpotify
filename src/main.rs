@@ -590,7 +590,6 @@ fn log_panics(path: std::path::PathBuf) {
 struct MiniWindow {
     size: egui::Vec2,
     position: Option<[f32; 2]>,
-    on_top: bool,
     taskbar: bool,
     storage_path: std::path::PathBuf,
 }
@@ -600,7 +599,6 @@ impl MiniWindow {
         app.mini_as_root.then(|| Self {
             size: app.settings.mini_player_size.into(),
             position: app.settings.mini_player_pos,
-            on_top: app.settings.winamp_on_top,
             taskbar: app.settings.winamp_show_taskbar,
             storage_path: app.dirs.cache.join("mini-player.ron"),
         })
@@ -671,7 +669,7 @@ fn native_options(
                 .with_maximize_button(false)
                 .with_inner_size(mini.size)
                 .with_min_inner_size([240.0, 56.0])
-                .with_window_level(app::on_top_window_level(mini.on_top))
+                .with_window_level(egui::WindowLevel::AlwaysOnTop)
                 // egui applies this native attribute on Windows only.
                 .with_taskbar(mini.taskbar);
             match mini.position {
@@ -738,7 +736,6 @@ mod native_window_tests {
         let mini = MiniWindow {
             size: egui::vec2(520.0, 96.0),
             position: Some([120.0, 240.0]),
-            on_top: true,
             taskbar: false,
             storage_path: std::path::PathBuf::from("/tmp/fastpotify-mini-test.ron"),
         };

@@ -709,10 +709,6 @@ fn options_menu(app: &mut App, ui: &mut Ui, unit: f32) {
             }
         }
     });
-    let mut on_top = app.settings.winamp_on_top;
-    if ui.checkbox(&mut on_top, "Always on top").clicked() {
-        app.actions.push(Action::ToggleWinampOnTop);
-    }
     if app.windows_controls_visible() {
         let mut visible = app.settings.winamp_show_taskbar;
         if ui.checkbox(&mut visible, "Show in taskbar").changed() {
@@ -834,18 +830,10 @@ fn clutter_bar(app: &mut App, view: &mut View, now: Option<&NowPlaying>) {
     menu(egui::Popup::menu(&options), view.skin, unit, |ui| {
         options_menu(app, ui, unit);
     });
-    if view
-        .lamp_button(
-            layout::CLUTTER_A,
-            sprites::CLUTTER_A_LIT,
-            app.settings.winamp_on_top,
-            "clutter-a",
-        )
-        .on_hover_text("Always on top")
-        .clicked()
-    {
-        app.actions.push(Action::ToggleWinampOnTop);
-    }
+    // Lit and inert: the mini player always floats now, so the lamp reports
+    // that rather than offering a switch that does nothing.
+    view.lamp_button(layout::CLUTTER_A, sprites::CLUTTER_A_LIT, true, "clutter-a")
+        .on_hover_text("Always on top");
     if view
         .lamp_button(
             layout::CLUTTER_I,

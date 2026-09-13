@@ -810,7 +810,7 @@ impl App {
         }
         // Re-assert the on-top level over the first frames, once the window
         // is mapped, because the level set at creation does not stick on X11.
-        if self.mini_player_visible() && self.settings.winamp_on_top {
+        if self.mini_player_visible() {
             self.winamp_level_reassert = 3;
         }
         // A capture window is pinned to the size it was asked for; the real
@@ -2195,9 +2195,7 @@ impl App {
 
     /// Pushes the mini player's always-on-top level to its live window.
     fn push_winamp_level(&self, ctx: &egui::Context) {
-        if let Some(level) =
-            winamp_on_top_level(self.mini_player_visible(), self.settings.winamp_on_top)
-        {
+        if let Some(level) = winamp_on_top_level(self.mini_player_visible()) {
             ctx.send_viewport_cmd_to(
                 mini_viewport_id(),
                 egui::ViewportCommand::WindowLevel(level),
@@ -6664,9 +6662,7 @@ impl App {
                 self.settings_dirty = true;
                 if self.settings.mini_player_open {
                     // The level set at creation does not stick on X11.
-                    if self.settings.winamp_on_top {
-                        self.winamp_level_reassert = 3;
-                    }
+                    self.winamp_level_reassert = 3;
                 } else if self.mini_as_root {
                     // Nothing is sitting behind a mini-only window; the main
                     // one has to be opened in its place.
@@ -6706,13 +6702,6 @@ impl App {
             Action::SetSkinScale(scale) => {
                 self.settings.skin_scale = Some(scale);
                 self.settings_dirty = true;
-            }
-            Action::ToggleWinampOnTop => {
-                self.settings.winamp_on_top = !self.settings.winamp_on_top;
-                self.settings_dirty = true;
-                // The window level is set at creation, so push the new level to
-                // the live window.
-                self.push_winamp_level(ctx);
             }
             // This window attribute is fixed at creation, but it rides in the
             // mini player's viewport builder, so egui replaces that one
@@ -7121,7 +7110,7 @@ impl App {
             .with_min_inner_size([260.0, 56.0])
             // egui applies this native attribute on Windows only.
             .with_taskbar(taskbar)
-            .with_window_level(on_top_window_level(self.settings.winamp_on_top));
+            .with_window_level(egui::WindowLevel::AlwaysOnTop);
         if rebuilding {
             // Only while the window is being created: sending the geometry
             // every frame would fight the user's own dragging and resizing.
@@ -7679,8 +7668,8 @@ pub fn on_top_window_level(on_top: bool) -> egui::WindowLevel {
 /// Winamp window to change. The big window (where Settings lives) keeps its
 /// normal level, so toggling the setting there only takes effect once the
 /// Winamp window opens.
-fn winamp_on_top_level(mini_player_open: bool, on_top: bool) -> Option<egui::WindowLevel> {
-    mini_player_open.then_some(on_top_window_level(on_top))
+fn winamp_on_top_level(mini_player_open: bool) -> Option<egui::WindowLevel> {
+    mini_player_open.then_some(egui::WindowLevel::AlwaysOnTop)
 }
 
 fn page_related_needs_load(pages: &HashMap<String, ArtistPage>, id: &str) -> bool {
@@ -8001,47 +7990,38 @@ mod tests {
         assert_eq!(percent_to_volume(200), u16::MAX);
     }
 
-    /// Toggling always-on-top pushes the matching level to the live Winamp
-    /// window, so the change takes effect without recreating the window.
+    /// The mini player floats over the window it belongs to, so the level is
+    /// pushed to its live window rather than being a preference to look up.
     #[test]
-    fn the_mini_player_follows_the_on_top_toggle_live() {
+    fn the_mini_player_floats_and_the_main_window_does_not() {
         assert_eq!(
-            winamp_on_top_level(true, true),
+            winamp_on_top_level(true),
             Some(egui::WindowLevel::AlwaysOnTop)
         );
         assert_eq!(
-            winamp_on_top_level(true, false),
-            Some(egui::WindowLevel::Normal)
+            winamp_on_top_level(false),
+            None,
+            "the window hosting the mini player must not be forced on top too"
         );
     }
 
-    /// The setting lives in the big window's Settings page. Toggling it there
-    /// must never force the big window on top, so no level command is sent.
-    #[test]
-    fn the_big_window_never_follows_the_on_top_toggle() {
-        assert_eq!(winamp_on_top_level(false, true), None);
-        assert_eq!(winamp_on_top_level(false, false), None);
-    }
-
     /// The level set at window creation does not stick on X11, so opening the
-    /// Winamp window with always-on-top saved must schedule a re-assert.
+    /// mini player has to schedule a re-assert.
     #[test]
-    fn opening_the_mini_player_on_top_schedules_a_reassert() {
+    fn opening_the_mini_player_schedules_a_reassert() {
         let ctx = egui::Context::default();
         let mut app = headless_app();
         app.settings.mini_player_open = true;
-        app.settings.winamp_on_top = true;
         app.attach(&ctx);
         assert_eq!(app.winamp_level_reassert, 3);
     }
 
-    /// Opening the Winamp window without always-on-top re-asserts nothing.
+    /// Nothing to re-assert when there is no mini player on screen.
     #[test]
-    fn opening_the_mini_player_without_on_top_schedules_no_reassert() {
+    fn opening_without_the_mini_player_schedules_no_reassert() {
         let ctx = egui::Context::default();
         let mut app = headless_app();
-        app.settings.mini_player_open = true;
-        app.settings.winamp_on_top = false;
+        app.settings.mini_player_open = false;
         app.attach(&ctx);
         assert_eq!(app.winamp_level_reassert, 0);
     }
@@ -12394,7 +12374,6 @@ mod tests {
     fn a_suspended_mini_player_attaches_with_main_window_geometry_and_level() {
         let mut app = headless_app();
         app.settings.mini_player_open = true;
-        app.settings.winamp_on_top = true;
         app.mini_player_suspended = true;
         app.session_window_size = Some([1024.0, 768.0]);
         let ctx = egui::Context::default();
@@ -12546,7 +12525,6 @@ mod tests {
     fn the_mini_window_is_built_with_its_own_native_attributes() {
         // #given
         let (ctx, mut app) = hosting_app();
-        app.settings.winamp_on_top = true;
         app.settings.winamp_show_taskbar = false;
         app.settings.mini_player_size = [420.0, 92.0];
         app.settings.mini_player_pos = Some([300.0, 200.0]);
