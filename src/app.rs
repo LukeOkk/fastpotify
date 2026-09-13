@@ -6675,6 +6675,16 @@ impl App {
                     ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Focus);
                 }
             }
+            Action::MinimizeMiniPlayer => {
+                // Whichever window is currently showing the mini player: it is
+                // the root one once the main window has been closed.
+                let target = if self.mini_as_root {
+                    egui::ViewportId::ROOT
+                } else {
+                    mini_viewport_id()
+                };
+                ctx.send_viewport_cmd_to(target, egui::ViewportCommand::Minimized(true));
+            }
             Action::CloseMiniPlayer => {
                 if self.settings.mini_player_open {
                     self.settings.mini_player_open = false;
@@ -12693,6 +12703,41 @@ mod tests {
         assert!(
             !app.mini_as_root && app.switch_intent,
             "the main window opens in its place"
+        );
+        app.backend.shutdown();
+    }
+
+    /// The yellow light sends the mini player to the Dock, and it has to aim
+    /// at whichever window is showing it: the child viewport normally, the
+    /// root one once the main window has been closed.
+    #[test]
+    fn minimizing_aims_at_the_window_showing_the_mini_player() {
+        let (ctx, mut app) = hosting_app();
+        let mut output = ctx.run_ui(Default::default(), |ui| app.frame_ui(ui));
+        output.textures_delta.clear();
+
+        // Through `frame_ui`, because the child viewport only exists in a pass
+        // that draws it, and a command aimed at a viewport that is not there
+        // goes nowhere.
+        app.actions.push(Action::MinimizeMiniPlayer);
+        let mut output = ctx.run_ui(Default::default(), |ui| app.frame_ui(ui));
+        output.textures_delta.clear();
+        assert!(
+            output.viewport_output[&mini_viewport_id()]
+                .commands
+                .contains(&egui::ViewportCommand::Minimized(true)),
+            "the child viewport is the one on screen"
+        );
+
+        app.mini_as_root = true;
+        app.actions.push(Action::MinimizeMiniPlayer);
+        let mut output = ctx.run_ui(Default::default(), |_ui| app.apply_actions(&ctx));
+        output.textures_delta.clear();
+        assert!(
+            output.viewport_output[&egui::ViewportId::ROOT]
+                .commands
+                .contains(&egui::ViewportCommand::Minimized(true)),
+            "with the main window gone the mini player is the root window"
         );
         app.backend.shutdown();
     }

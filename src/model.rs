@@ -890,6 +890,8 @@ pub enum Action {
     ToggleMiniPlayer,
     /// Close the mini player's window, whoever asked.
     CloseMiniPlayer,
+    /// Send the mini player's window to the Dock.
+    MinimizeMiniPlayer,
     /// Select a skin, or the built-in skin for `None`.
     SetSkin(Option<String>),
     /// Install and select a skin file.

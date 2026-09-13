@@ -286,7 +286,7 @@ fn stacked(app: &mut App, ui: &mut Ui, now: Option<&NowPlaying>, rect: Rect) {
 fn top_strip(app: &mut App, ui: &mut Ui, rect: Rect) {
     // Before the drag handle, or the handle would swallow its clicks.
     #[cfg(target_os = "macos")]
-    close_dot(
+    traffic_lights(
         app,
         ui,
         pos2(
@@ -317,22 +317,32 @@ fn top_strip(app: &mut App, ui: &mut Ui, rect: Rect) {
     }
 }
 
-/// macOS puts a window's close control in its top-left corner. This one is
-/// borderless, so it draws its own traffic light rather than going without.
+/// macOS puts a window's controls in its top-left corner. This one is
+/// borderless, so it draws its own traffic lights rather than going without.
 #[cfg(target_os = "macos")]
-fn close_dot(app: &mut App, ui: &mut Ui, center: egui::Pos2) {
-    let hit = Rect::from_center_size(center, Vec2::splat(CLOSE_DOT + 4.0));
-    let response = ui
-        .interact(hit, ui.id().with("mini-close"), Sense::click())
-        .on_hover_text("Close the mini player");
-    let hovered = response.hovered();
-    let fill = if hovered {
-        Color32::from_rgb(255, 95, 87)
-    } else {
-        Color32::from_rgb(226, 86, 79)
-    };
-    ui.painter().circle_filled(center, CLOSE_DOT / 2.0, fill);
-    if hovered {
+fn traffic_lights(app: &mut App, ui: &mut Ui, left: egui::Pos2) {
+    if close_dot(app, ui, left) {
+        app.actions.push(Action::CloseMiniPlayer);
+    }
+    // The platform spaces the lights eight points apart, edge to edge.
+    let next = pos2(left.x + CLOSE_DOT + 8.0, left.y);
+    if minimize_dot(app, ui, next) {
+        app.actions.push(Action::MinimizeMiniPlayer);
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn close_dot(app: &mut App, ui: &mut Ui, center: egui::Pos2) -> bool {
+    let hovered = traffic_light(
+        app,
+        ui,
+        center,
+        "mini-close",
+        "Close the mini player",
+        Color32::from_rgb(255, 95, 87),
+        Color32::from_rgb(226, 86, 79),
+    );
+    if hovered.1 {
         // The glyph the platform reveals when the pointer is over the lights.
         let arm = 2.6;
         let stroke = egui::Stroke::new(1.2, Color32::from_rgb(115, 22, 16));
@@ -341,9 +351,49 @@ fn close_dot(app: &mut App, ui: &mut Ui, center: egui::Pos2) {
         ui.painter()
             .line_segment([center + vec2(arm, -arm), center + vec2(-arm, arm)], stroke);
     }
-    if response.clicked() {
-        app.actions.push(Action::CloseMiniPlayer);
+    hovered.0
+}
+
+#[cfg(target_os = "macos")]
+fn minimize_dot(app: &mut App, ui: &mut Ui, center: egui::Pos2) -> bool {
+    let hovered = traffic_light(
+        app,
+        ui,
+        center,
+        "mini-minimize",
+        "Minimize the mini player",
+        Color32::from_rgb(255, 189, 46),
+        Color32::from_rgb(223, 164, 41),
+    );
+    if hovered.1 {
+        let arm = 3.0;
+        let stroke = egui::Stroke::new(1.2, Color32::from_rgb(146, 96, 15));
+        ui.painter()
+            .line_segment([center + vec2(-arm, 0.0), center + vec2(arm, 0.0)], stroke);
     }
+    hovered.0
+}
+
+/// Paints one light and reports `(clicked, hovered)`; the caller adds the
+/// glyph, which is the only part that differs between them.
+#[cfg(target_os = "macos")]
+fn traffic_light(
+    _app: &mut App,
+    ui: &mut Ui,
+    center: egui::Pos2,
+    id: &str,
+    tooltip: &str,
+    hot: Color32,
+    cold: Color32,
+) -> (bool, bool) {
+    let hit = Rect::from_center_size(center, Vec2::splat(CLOSE_DOT + 4.0));
+    let response = ui
+        .interact(hit, ui.id().with(id), Sense::click())
+        .on_hover_text(tooltip);
+    let hovered = response.hovered();
+    ui.painter()
+        .circle_filled(center, CLOSE_DOT / 2.0, if hovered { hot } else { cold });
+    (response.clicked(), hovered)
 }
 
 fn drag_dots(ui: &Ui, rect: Rect, palette: &Palette) {
@@ -450,13 +500,19 @@ fn single_row(app: &mut App, ui: &mut Ui, now: Option<&NowPlaying>, rect: Rect, 
     let dots_top = bar.top() + CLOSE_DOT + 2.0;
     #[cfg(not(target_os = "macos"))]
     let dots_top = bar.top();
+    // Wide enough for the pair of lights above it, so neither one lands under
+    // the cover art.
+    #[cfg(target_os = "macos")]
+    let gutter = CLOSE_DOT * 2.0 + 8.0;
+    #[cfg(not(target_os = "macos"))]
+    let gutter = 16.0;
     // A high zoom factor can leave less height than the dot takes.
     let dots = Rect::from_min_max(
         pos2(bar.left(), dots_top.min(bar.bottom())),
-        pos2(bar.left() + 16.0, bar.bottom()),
+        pos2(bar.left() + gutter, bar.bottom()),
     );
     #[cfg(target_os = "macos")]
-    close_dot(
+    traffic_lights(
         app,
         ui,
         pos2(bar.left() + CLOSE_DOT / 2.0, bar.top() + CLOSE_DOT / 2.0),
