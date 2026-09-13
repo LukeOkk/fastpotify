@@ -1,7 +1,7 @@
 //! Bundled gettext catalogs. English is the source language and the fallback
 //! for every message a catalog has not translated yet.
 //!
-//! Marking a string for translation is [`tr!`]:
+//! Marking a string for translation is [`crate::tr!`]:
 //!
 //! ```ignore
 //! let locale = app.locale; // Copy, so it never borrows `app`
@@ -103,7 +103,7 @@ impl Locale {
     /// The language's name in that language, for the picker. A listener who
     /// has the app in a language they cannot read must still be able to find
     /// their own, so these are never translated and never marked with
-    /// [`tr!`].
+    /// [`crate::tr!`].
     /// The locale Spotify's catalogue wants, so browse categories come back
     /// named in the listener's language. Its `locale` parameter takes a
     /// language and a region joined by an underscore and ignores a bare
@@ -256,7 +256,7 @@ pub const LOCALES: &[Locale] = &[
 /// English text at extraction time -- build an interpolated string by
 /// translating a `{placeholder}` form and calling `.replace()` on the
 /// result, the way [`Locale::liked_song_count`] does. A counted phrase is
-/// [`trn!`], not this.
+/// [`crate::trn!`], not this.
 ///
 /// `xgettext` finds these by name (see
 /// `.github/scripts/update-translations.sh`), so the macro must be called
