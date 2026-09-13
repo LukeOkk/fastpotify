@@ -6,6 +6,7 @@ use crate::api::models::{Category, pick_image};
 use crate::app::App;
 use crate::model::{Action, Loadable, Page};
 use crate::theme::{self, Icon};
+use crate::tr;
 
 use super::widgets;
 
@@ -18,8 +19,9 @@ const COVER_TILT: f32 = 0.44;
 
 pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
+    let locale = app.locale;
     ui.add_space(8.0);
-    theme::text(ui, "Explore", theme::bold(28.0), palette.text);
+    theme::text(ui, tr!(locale, "Explore"), theme::bold(28.0), palette.text);
     ui.add_space(14.0);
     match &app.explore {
         Loadable::NotLoaded | Loadable::Loading => widgets::loading_row(ui, &palette),
@@ -31,8 +33,11 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             ui,
             &palette,
             Icon::Compass,
-            "Nothing to browse",
-            "Spotify didn't return any categories for this account.",
+            &tr!(locale, "Nothing to browse"),
+            &tr!(
+                locale,
+                "Spotify didn't return any categories for this account."
+            ),
         ),
         Loadable::Loaded(categories) => {
             let categories = categories.clone();
@@ -43,6 +48,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
 
 pub fn category(app: &mut App, ui: &mut egui::Ui, id: &str) {
     let palette = app.palette;
+    let locale = app.locale;
     let (name, retired) = app
         .category_pages
         .get(id)
@@ -58,9 +64,11 @@ pub fn category(app: &mut App, ui: &mut egui::Ui, id: &str) {
             ui.add_space(2.0);
             theme::text(
                 ui,
-                format!(
+                tr!(
+                    locale,
                     "Spotify retired this category's playlist feed in November 2024, so these are search results for \u{201c}{heading}\u{201d}."
-                ),
+                )
+                .replace("{heading}", heading),
                 theme::regular(13.0),
                 palette.secondary,
             );
@@ -80,8 +88,11 @@ pub fn category(app: &mut App, ui: &mut egui::Ui, id: &str) {
             ui,
             &palette,
             Icon::ListMusic,
-            "No playlists here",
-            "Spotify has nothing to show for this category right now.",
+            &tr!(locale, "No playlists here"),
+            &tr!(
+                locale,
+                "Spotify has nothing to show for this category right now."
+            ),
         ),
         Some(Loadable::Loaded(playlists)) => {
             let playlists = playlists.clone();
@@ -93,7 +104,9 @@ pub fn category(app: &mut App, ui: &mut egui::Ui, id: &str) {
                     .as_deref()
                     .map(crate::util::strip_html)
                     .filter(|description| !description.is_empty())
-                    .unwrap_or_else(|| format!("By {}", playlist.owner_name()));
+                    .unwrap_or_else(|| {
+                        tr!(locale, "By {owner}").replace("{owner}", playlist.owner_name())
+                    });
                 let card = widgets::card(
                     ui,
                     app,

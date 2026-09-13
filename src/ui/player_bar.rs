@@ -6,6 +6,7 @@ use crate::app::{App, NowPlaying};
 use crate::model::{Action, DragTrack, Page};
 use crate::player::RepeatMode;
 use crate::theme::{self, Icon};
+use crate::tr;
 use crate::util;
 
 use super::widgets::{SliderEvent, thin_slider};
@@ -81,13 +82,13 @@ fn now_playing_block(app: &mut App, ui: &mut egui::Ui, region: Rect, now: Option
         text_ui.spacing_mut().item_spacing.y = 2.0;
         theme::text(
             &mut text_ui,
-            "Nothing playing",
+            tr!(app.locale, "Nothing playing"),
             theme::medium(14.0),
             palette.secondary,
         );
         theme::text(
             &mut text_ui,
-            "Pick a song, album, or playlist",
+            tr!(app.locale, "Pick a song, album, or playlist"),
             theme::regular(12.0),
             palette.dim,
         );
@@ -217,9 +218,9 @@ fn now_playing_block(app: &mut App, ui: &mut egui::Ui, region: Rect, now: Option
     if !now.is_episode {
         let saved = app.is_saved(&now.uri).unwrap_or(false);
         let (icon, color, tooltip) = if saved {
-            (Icon::HeartFilled, palette.accent, "Remove from Liked Songs")
+            (Icon::HeartFilled, palette.accent, &tr!(app.locale, "Remove from Liked Songs"))
         } else {
-            (Icon::Heart, palette.secondary, "Save to Liked Songs")
+            (Icon::Heart, palette.secondary, &tr!(app.locale, "Save to Liked Songs"))
         };
         // Sit the heart just past the actual text, not at the region's far
         // edge, so it stays visually attached to the title.
@@ -300,14 +301,14 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         } else {
             palette.text
         },
-        "Shuffle",
+        &tr!(app.locale, "Shuffle"),
     );
     shuffle_button.widget_info(|| {
         egui::WidgetInfo::selected(
             egui::WidgetType::Checkbox,
             cell.is_enabled(),
             shuffle,
-            "Shuffle",
+            &tr!(app.locale, "Shuffle"),
         )
     });
     if shuffle_button.clicked() {
@@ -321,7 +322,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         18.0,
         dim,
         palette.text,
-        "Previous",
+        &tr!(app.locale, "Previous"),
     )
     .clicked()
     {
@@ -345,6 +346,11 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         } else {
             palette.text
         };
+        let play_label = if playing {
+            tr!(app.locale, "Pause")
+        } else {
+            tr!(app.locale, "Play")
+        };
         let mut cell = centered(ui, disc);
         if theme::circle_button(
             &mut cell,
@@ -353,7 +359,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
             palette.text,
             hover,
             palette.window,
-            if playing { "Pause" } else { "Play" },
+            &play_label,
         )
         .clicked()
         {
@@ -368,7 +374,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         18.0,
         dim,
         palette.text,
-        "Next",
+        &tr!(app.locale, "Next"),
     )
     .clicked()
     {
@@ -376,9 +382,9 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     }
 
     let (repeat_icon, repeat_color, tooltip) = match repeat {
-        RepeatMode::Off => (Icon::Repeat, dim, "Repeat"),
-        RepeatMode::Context => (Icon::Repeat, palette.accent, "Repeat one"),
-        RepeatMode::Track => (Icon::Repeat1, palette.accent, "Repeat off"),
+        RepeatMode::Off => (Icon::Repeat, dim, tr!(app.locale, "Repeat")),
+        RepeatMode::Context => (Icon::Repeat, palette.accent, tr!(app.locale, "Repeat one")),
+        RepeatMode::Track => (Icon::Repeat1, palette.accent, tr!(app.locale, "Repeat off")),
     };
     let mut cell = centered(ui, slot(widths[4]));
     if theme::icon_button(
@@ -391,7 +397,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         } else {
             palette.accent_hover
         },
-        tooltip,
+        &tooltip,
     )
     .clicked()
     {
@@ -438,7 +444,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         &mut slider_ui,
         &palette,
         egui::Id::new("seek-slider"),
-        "Playback position (%)",
+        &tr!(app.locale, "Playback position (%)"),
         fraction,
         slider_width,
         None,
@@ -476,7 +482,7 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
         ui,
         &palette,
         egui::Id::new("volume-slider"),
-        "Volume (%)",
+        &tr!(app.locale, "Volume (%)"),
         shown as f32 / 100.0,
         92.0,
         Some(0.05),
@@ -502,13 +508,18 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
         34..=66 => Icon::Volume1,
         _ => Icon::Volume2,
     };
+    let mute_label = if shown == 0 {
+        tr!(app.locale, "Unmute")
+    } else {
+        tr!(app.locale, "Mute")
+    };
     if theme::icon_button(
         ui,
         volume_icon,
         18.0,
         palette.secondary,
         palette.text,
-        if shown == 0 { "Unmute" } else { "Mute" },
+        &mute_label,
     )
     .clicked()
     {
@@ -526,7 +537,7 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
             palette.secondary
         },
         palette.text,
-        "Connect to a device",
+        &tr!(app.locale, "Connect to a device"),
     );
     ui.ctx().data_mut(|data| {
         data.insert_temp(egui::Id::new(super::devices::BUTTON_RECT_ID), devices.rect)
@@ -546,7 +557,7 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
             palette.secondary
         },
         palette.text,
-        "Queue",
+        &tr!(app.locale, "Queue"),
     )
     .clicked()
     {
@@ -562,7 +573,7 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
             palette.secondary
         },
         palette.text,
-        "Lyrics",
+        &tr!(app.locale, "Lyrics"),
     )
     .clicked()
     {

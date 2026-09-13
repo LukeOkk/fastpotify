@@ -8,6 +8,7 @@ use crate::api::models::{PlayableItem, Playlist, pick_image};
 use crate::app::App;
 use crate::model::{Action, DISCOVER_TERMS, Loadable, Page, RowContext};
 use crate::theme::{self, Icon};
+use crate::tr;
 
 use super::widgets::{self, TrackRow};
 
@@ -36,10 +37,11 @@ struct Tile {
 }
 
 fn quick_access(app: &mut App, ui: &mut egui::Ui) {
+    let locale = app.locale;
     let palette = app.palette;
     let mut tiles: Vec<Tile> = vec![Tile {
         image: None,
-        name: "Liked Songs".to_string(),
+        name: tr!(locale, "Liked Songs").into_owned(),
         page: Page::LikedSongs,
         uri: app
             .user
@@ -137,7 +139,7 @@ fn quick_access(app: &mut App, ui: &mut egui::Ui) {
                             palette.accent,
                             palette.accent_hover,
                             palette.on_accent,
-                            "Play",
+                            &tr!(locale, "Play"),
                         )
                         .clicked()
                         {
@@ -173,7 +175,9 @@ fn quick_access(app: &mut App, ui: &mut egui::Ui) {
 }
 
 fn made_for_you(app: &mut App, ui: &mut egui::Ui) {
+    let locale = app.locale;
     let palette = app.palette;
+    let title = tr!(locale, "Made for you");
     let mut playlists: Vec<Playlist> = Vec::new();
     let mut loading = false;
     let mut failed = false;
@@ -198,11 +202,16 @@ fn made_for_you(app: &mut App, ui: &mut egui::Ui) {
     if playlists.is_empty() && !loading && !failed {
         return;
     }
-    widgets::shelf(ui, &palette, "made-for-you", "Made for you", |ui| {
+    widgets::shelf(ui, &palette, "made-for-you", &title, |ui| {
         if playlists.is_empty() && loading {
             widgets::loading_row(ui, &palette);
         } else if playlists.is_empty() && failed {
-            widgets::error_row(ui, app, "Couldn't load this shelf", Some(Page::Home));
+            widgets::error_row(
+                ui,
+                app,
+                &tr!(locale, "Couldn't load this shelf"),
+                Some(Page::Home),
+            );
         }
         for playlist in &playlists {
             let subtitle = playlist
@@ -210,7 +219,9 @@ fn made_for_you(app: &mut App, ui: &mut egui::Ui) {
                 .as_deref()
                 .map(crate::util::strip_html)
                 .filter(|d| !d.is_empty())
-                .unwrap_or_else(|| format!("By {}", playlist.owner_name()));
+                .unwrap_or_else(|| {
+                    tr!(locale, "By {owner}").replace("{owner}", playlist.owner_name())
+                });
             let card = widgets::card(
                 ui,
                 app,
@@ -249,17 +260,19 @@ fn made_for_you(app: &mut App, ui: &mut egui::Ui) {
 }
 
 fn recently_played(app: &mut App, ui: &mut egui::Ui) {
+    let locale = app.locale;
     let palette = app.palette;
+    let title = tr!(locale, "Recently played");
     let history = match app.home.recently_played.clone() {
         Loadable::Loaded(history) => history,
         Loadable::Loading | Loadable::NotLoaded => {
-            widgets::shelf(ui, &palette, "recent", "Recently played", |ui| {
+            widgets::shelf(ui, &palette, "recent", &title, |ui| {
                 widgets::loading_row(ui, &palette)
             });
             return;
         }
         Loadable::Failed(message) => {
-            widgets::shelf(ui, &palette, "recent", "Recently played", |ui| {
+            widgets::shelf(ui, &palette, "recent", &title, |ui| {
                 widgets::error_row(ui, app, &message, Some(Page::Home));
             });
             return;
@@ -280,7 +293,7 @@ fn recently_played(app: &mut App, ui: &mut egui::Ui) {
     if tracks.is_empty() {
         return;
     }
-    widgets::shelf(ui, &palette, "recent", "Recently played", |ui| {
+    widgets::shelf(ui, &palette, "recent", &title, |ui| {
         for entry in &tracks {
             let track = &entry.track;
             let card = widgets::card(
@@ -316,17 +329,19 @@ fn recently_played(app: &mut App, ui: &mut egui::Ui) {
 }
 
 fn top_artists(app: &mut App, ui: &mut egui::Ui) {
+    let locale = app.locale;
     let palette = app.palette;
+    let title = tr!(locale, "Your top artists");
     let artists = match app.home.top_artists.clone() {
         Loadable::Loaded(artists) => artists,
         Loadable::Loading | Loadable::NotLoaded => {
-            widgets::shelf(ui, &palette, "top-artists", "Your top artists", |ui| {
+            widgets::shelf(ui, &palette, "top-artists", &title, |ui| {
                 widgets::loading_row(ui, &palette)
             });
             return;
         }
         Loadable::Failed(message) => {
-            widgets::shelf(ui, &palette, "top-artists", "Your top artists", |ui| {
+            widgets::shelf(ui, &palette, "top-artists", &title, |ui| {
                 widgets::error_row(ui, app, &message, Some(Page::Home));
             });
             return;
@@ -335,14 +350,14 @@ fn top_artists(app: &mut App, ui: &mut egui::Ui) {
     if artists.is_empty() {
         return;
     }
-    widgets::shelf(ui, &palette, "top-artists", "Your top artists", |ui| {
+    widgets::shelf(ui, &palette, "top-artists", &title, |ui| {
         for artist in &artists {
             let card = widgets::card(
                 ui,
                 app,
                 pick_image(&artist.images, 300),
                 &artist.name,
-                "Artist",
+                &tr!(locale, "Artist"),
                 true,
                 true,
             );
@@ -448,19 +463,29 @@ fn track_list(
 }
 
 fn top_tracks(app: &mut App, ui: &mut egui::Ui) {
+    let locale = app.locale;
     let tracks = app.home.top_tracks.clone();
     track_list(
         app,
         ui,
-        "Your top songs",
+        &tr!(locale, "Your top songs"),
         tracks,
         10,
         Some(Page::TopSongs),
-        Some("Show more top songs"),
+        Some(&tr!(locale, "Show more top songs")),
     );
 }
 
 fn recommendations(app: &mut App, ui: &mut egui::Ui) {
+    let locale = app.locale;
     let tracks = app.home.recommendations.clone();
-    track_list(app, ui, "Recommended for you", tracks, 20, None, None);
+    track_list(
+        app,
+        ui,
+        &tr!(locale, "Recommended for you"),
+        tracks,
+        20,
+        None,
+        None,
+    );
 }

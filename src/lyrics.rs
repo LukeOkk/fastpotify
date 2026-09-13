@@ -142,7 +142,7 @@ pub fn system_language() -> String {
     sys_locale::get_locale()
         .and_then(|locale| {
             locale
-                .split(|c: char| c == '-' || c == '_')
+                .split(['-', '_'])
                 .next()
                 .map(str::to_lowercase)
         })
