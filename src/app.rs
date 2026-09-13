@@ -180,6 +180,14 @@ pub struct App {
     pub window_hidden: bool,
     /// The window should close but the process should stay in the tray.
     pub hide_intent: bool,
+    /// Whether the window on screen is the mini player itself rather than the
+    /// main window hosting it. In memory only: the saved `mini_player_open`
+    /// says whether the mini player is wanted, never which window is showing.
+    pub mini_as_root: bool,
+    /// Asks the outer loop to close this window and open the other kind. An
+    /// immediate child viewport cannot outlive its host, so swapping which
+    /// window is the root is the only way to leave the mini player alone.
+    pub switch_intent: bool,
     /// The outer loop should recreate the hidden window.
     pub wants_show: bool,
     /// The mini player is suspended while sign-in needs the main window.
@@ -564,6 +572,8 @@ impl App {
             tray,
             window_hidden: false,
             hide_intent: false,
+            mini_as_root: false,
+            switch_intent: false,
             wants_show: false,
             mini_player_suspended: false,
             mini_viewport_open: false,
@@ -6657,6 +6667,12 @@ impl App {
                     if self.settings.winamp_on_top {
                         self.winamp_level_reassert = 3;
                     }
+                } else if self.mini_as_root {
+                    // Nothing is sitting behind a mini-only window; the main
+                    // one has to be opened in its place.
+                    self.mini_as_root = false;
+                    self.switch_intent = true;
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 } else {
                     // The way out of the mini player is the main window, which
                     // has been sitting behind it the whole time.
@@ -6668,9 +6684,17 @@ impl App {
                     self.settings.mini_player_open = false;
                     self.settings_dirty = true;
                 }
-                // The window that was on top is going; hand the keyboard to
-                // the one that stays.
-                ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Focus);
+                if self.mini_as_root {
+                    // This is the only window there is. Closing it opens the
+                    // main one rather than leaving the app with no way back.
+                    self.mini_as_root = false;
+                    self.switch_intent = true;
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                } else {
+                    // The window that was on top is going; hand the keyboard
+                    // to the one that stays.
+                    ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Focus);
+                }
             }
             Action::SetSkin(name) => {
                 self.settings.skin = name;
@@ -6761,7 +6785,15 @@ impl App {
             }
             // The same request the window's own close button makes, so the
             // close-to-tray setting decides what follows.
-            Action::CloseWindow => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            Action::CloseWindow => {
+                // `Close` skips the close-request path above, so the handover
+                // to the mini player has to be decided here as well.
+                if !self.mini_as_root && self.mini_player_visible() {
+                    self.mini_as_root = true;
+                    self.switch_intent = true;
+                }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
             Action::CycleVisualiser => {
                 self.settings.vis = self.settings.vis.next();
                 self.settings_dirty = true;
@@ -7146,11 +7178,18 @@ impl App {
         } else if self.mini_player_suspended && !needs_sign_in {
             self.mini_player_suspended = false;
         }
-        // The screenshot harness can only capture the root viewport, so a
-        // capture run draws the mini player here instead of beside.
-        let inline = self.capturing() && self.settings.mini_player_open;
+        // Sign-in belongs to the main window, so a window showing only the
+        // mini player has to hand back before it can be asked for one.
+        if self.mini_as_root && (needs_sign_in || !self.settings.mini_player_open) {
+            self.mini_as_root = false;
+            self.switch_intent = true;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+        // Two ways the mini player ends up in the root window instead of
+        // beside it: the user closed the main window and left it alone, and
+        // the screenshot harness, which can only capture the root viewport.
+        let inline = self.mini_as_root || (self.capturing() && self.settings.mini_player_open);
         if inline {
-            #[cfg(feature = "demo")]
             crate::ui::compact_bar::show(self, ui);
         } else {
             crate::ui::show(self, ui);
@@ -7160,10 +7199,10 @@ impl App {
         self.refresh_frame_now();
         self.sync_media_controls(ctx);
 
-        // The root viewport is always the main window now, so its geometry is
-        // always the one worth remembering -- unless this window only exists
-        // to be photographed at a size someone asked for on the command line.
-        if !self.capturing() {
+        // Only the main window's geometry is worth remembering here: the mini
+        // player keeps its own in `mini_player_size`, and a capture window
+        // exists only to be photographed at a size someone asked for.
+        if !self.capturing() && !inline {
             if let Some(rect) = ctx.input(|input| input.viewport().inner_rect) {
                 self.last_window_size = Some([rect.width(), rect.height()]);
             }
@@ -7185,22 +7224,26 @@ impl App {
         if self.is_connected() {
             ctx.request_repaint_after(self.connected_repaint_interval());
         }
-        // The mini player is drawn from inside this window's own pass, so
-        // closing this window ends it too, and the app quits or goes to the
-        // tray as it would without one. The saved `mini_player_open` is left
-        // alone, so the pair comes back together on the next window.
+        // Closing the main window while the mini player is up hands the screen
+        // over to it rather than ending both. The mini player is drawn from
+        // inside this window's pass, so it cannot outlive it where it is; it
+        // becomes the root window instead, which is what the outer loop does
+        // when it sees `switch_intent`.
         //
-        // Taking the main window off screen instead does not work: minimizing
-        // it sends the mini player to the Dock with it, because an immediate
-        // child viewport is an AppKit child window and follows its parent, and
-        // `Visible(false)` detaches the view from the shared GL context so the
-        // next frame dies inside glutin. Measured on macOS 27, not assumed.
-        if ctx.input(|input| input.viewport().close_requested())
-            && !self.quit_requested
-            && self.hides_to_tray()
-        {
-            // Close the window and keep the process running in the tray.
-            self.hide_intent = true;
+        // Taking the main window off screen and leaving it there is not an
+        // option: minimizing it sends the mini player to the Dock with it,
+        // because an immediate child viewport is an AppKit child window and
+        // follows its parent, and `Visible(false)` detaches the view from the
+        // shared GL context so the next frame dies inside glutin. Both
+        // measured on macOS 27, not assumed.
+        if ctx.input(|input| input.viewport().close_requested()) && !self.quit_requested {
+            if !self.mini_as_root && self.mini_player_visible() {
+                self.mini_as_root = true;
+                self.switch_intent = true;
+            } else if self.hides_to_tray() {
+                // Close the window and keep the process running in the tray.
+                self.hide_intent = true;
+            }
         }
         self.frame_now = None;
     }
@@ -12632,11 +12675,11 @@ mod tests {
         app.backend.shutdown();
     }
 
-    /// The mini player is hosted by the main window's pass, so closing that
-    /// window ends both. What must survive is the preference: the pair comes
-    /// back together, rather than the app reopening as the big window alone.
+    /// Closing the main window while the mini player is up hands the screen
+    /// over to it: the small window becomes the root one and the app stays
+    /// running, rather than both going at once.
     #[test]
-    fn closing_the_main_window_keeps_the_mini_player_for_the_next_one() {
+    fn closing_the_main_window_hands_the_screen_to_the_mini_player() {
         // #given
         let (ctx, mut app) = hosting_app();
         let mut output = ctx.run_ui(Default::default(), |ui| app.frame_ui(ui));
@@ -12647,22 +12690,31 @@ mod tests {
         let mut output = ctx.run_ui(root_close_input(), |ui| app.frame_ui(ui));
         output.textures_delta.clear();
 
-        // #then: the close runs its normal course, and the mode is untouched
-        assert!(
-            !output.viewport_output[&egui::ViewportId::ROOT]
-                .commands
-                .contains(&egui::ViewportCommand::CancelClose)
-        );
+        // #then: the window goes, but it asks for the mini player to take its
+        // place rather than ending the pair. The preference is a preference,
+        // not a record of which window is on screen, so it is left alone.
+        assert!(app.mini_as_root, "the mini player becomes the root window");
+        assert!(app.switch_intent, "the outer loop is asked to reopen");
         assert!(app.settings.mini_player_open && !app.settings_dirty);
-        assert!(!app.quit_requested);
+        assert!(!app.quit_requested && !app.hide_intent);
 
-        // #when: a new window opens where the old one left off
+        // #when: the loop reopens, and the new window is the mini player
+        app.switch_intent = false;
         app.attach(&ctx);
         let mut output = ctx.run_ui(Default::default(), |ui| app.frame_ui(ui));
         output.textures_delta.clear();
         assert!(
-            output.viewport_output.contains_key(&mini_viewport_id()),
-            "the mini player comes back with the window that hosts it"
+            !output.viewport_output.contains_key(&mini_viewport_id()),
+            "it is the window now, not a viewport hosted inside one"
+        );
+
+        // #when: the way back is asked for from inside it
+        app.actions.push(Action::ToggleMiniPlayer);
+        let mut output = ctx.run_ui(Default::default(), |_ui| app.apply_actions(&ctx));
+        output.textures_delta.clear();
+        assert!(
+            !app.mini_as_root && app.switch_intent,
+            "the main window opens in its place"
         );
         app.backend.shutdown();
     }

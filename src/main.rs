@@ -427,13 +427,18 @@ fn main() -> eframe::Result<()> {
         let creator_waker = waker.clone();
         #[cfg(feature = "demo")]
         let creator_shot = shot.clone();
+        let mini = {
+            let guard = slot.lock().unwrap_or_else(|p| p.into_inner());
+            MiniWindow::wanted(guard.as_ref().expect("application state present"))
+        };
         #[cfg(feature = "demo")]
         let options = native_options(
             shot.is_some() && !mini_inline && demo_inner.is_none(),
             demo_inner,
+            mini,
         );
         #[cfg(not(feature = "demo"))]
-        let options = native_options(false, None);
+        let options = native_options(false, None, mini);
         #[cfg(windows)]
         let thumbbar_enabled = desktop_surfaces && options.viewport.taskbar != Some(false);
         eframe::run_native(
@@ -483,11 +488,17 @@ fn main() -> eframe::Result<()> {
         )?;
         waker.detach();
 
-        let hide = {
-            let guard = slot.lock().unwrap_or_else(|p| p.into_inner());
-            let app = guard.as_ref().expect("application state present");
-            !app.quit_requested && app.hide_intent
+        let (switch, hide) = {
+            let mut guard = slot.lock().unwrap_or_else(|p| p.into_inner());
+            let app = guard.as_mut().expect("application state present");
+            let switch = !app.quit_requested && app.switch_intent;
+            app.switch_intent = false;
+            (switch, !app.quit_requested && app.hide_intent)
         };
+        if switch {
+            // Straight back round: the other kind of window opens.
+            continue;
+        }
         if !hide {
             break;
         }
@@ -571,6 +582,31 @@ fn log_panics(path: std::path::PathBuf) {
     }));
 }
 
+/// The shape of a window that shows only the mini player.
+///
+/// It exists whenever the user closed the main window and left the small one
+/// on screen: an immediate child viewport cannot outlive its host, so the mini
+/// player has to be the root window to be alone.
+struct MiniWindow {
+    size: egui::Vec2,
+    position: Option<[f32; 2]>,
+    on_top: bool,
+    taskbar: bool,
+    storage_path: std::path::PathBuf,
+}
+
+impl MiniWindow {
+    fn wanted(app: &app::App) -> Option<Self> {
+        app.mini_as_root.then(|| Self {
+            size: app.settings.mini_player_size.into(),
+            position: app.settings.mini_player_pos,
+            on_top: app.settings.winamp_on_top,
+            taskbar: app.settings.winamp_show_taskbar,
+            storage_path: app.dirs.cache.join("mini-player.ron"),
+        })
+    }
+}
+
 const fn main_window_decorated(on_windows: bool) -> bool {
     !on_windows
 }
@@ -594,13 +630,25 @@ fn parse_demo_size(spec: &str) -> Result<[f32; 2], String> {
     Ok([width, height])
 }
 
-fn native_options(fullscreen: bool, inner_size: Option<[f32; 2]>) -> eframe::NativeOptions {
+fn native_options(
+    fullscreen: bool,
+    inner_size: Option<[f32; 2]>,
+    mini: Option<MiniWindow>,
+) -> eframe::NativeOptions {
     // A pinned size is a screenshot's, not the window's. Turning saving off
     // is not enough: eframe's startup restore reads the store anyway and
     // applies the remembered size after the window exists. Point a capture at
     // a store of its own, which nothing ever writes, and it keeps its size.
-    let persist_window = inner_size.is_none();
-    let persistence_path = inner_size.map(|_| std::env::temp_dir().join("fastpotify-capture.ron"));
+    // A mini-only window keeps its geometry in `mini_player_size`, so it must
+    // not write the main window's eframe store, and it needs a store of its
+    // own: turning saving off does not stop eframe's startup restore reading
+    // whatever path it is given.
+    let persist_window = inner_size.is_none() && mini.is_none();
+    let persistence_path = match (&mini, inner_size) {
+        (Some(mini), _) => Some(mini.storage_path.clone()),
+        (None, Some(_)) => Some(std::env::temp_dir().join("fastpotify-capture.ron")),
+        (None, None) => None,
+    };
     let icon = if cfg!(target_os = "macos") {
         // macOS takes the dock icon from the bundle's .icns, which is the
         // 1024px drawing with the platform's rounding. Setting a window
@@ -614,26 +662,44 @@ fn native_options(fullscreen: bool, inner_size: Option<[f32; 2]>) -> eframe::Nat
         .with_app_id("fastpotify")
         .with_taskbar(true)
         .with_icon(icon);
-    let viewport = {
-        let size = inner_size.unwrap_or([1240.0, 800.0]);
-        let mut viewport = viewport
-            // macOS: no title bar strip above the app. The content runs to
-            // the top edge and the traffic lights float over it, the way
-            // every other music player on the platform looks; the interface
-            // leaves room for them with `theme::titlebar_inset`.
-            .with_fullsize_content_view(true)
-            .with_titlebar_shown(false)
-            .with_title_shown(false)
-            // Windows has no equivalent to macOS's floating traffic lights.
-            // Removing its decorations lets the app surface fill the window.
-            .with_decorations(main_window_decorated(cfg!(windows)))
-            .with_inner_size(size)
-            .with_min_inner_size(inner_size.unwrap_or([760.0, 520.0]))
-            .with_fullscreen(fullscreen);
-        if inner_size.is_some() {
-            viewport = viewport.with_max_inner_size(size);
+    let viewport = match mini {
+        Some(mini) => {
+            let viewport = viewport
+                .with_decorations(false)
+                .with_transparent(false)
+                .with_resizable(true)
+                .with_maximize_button(false)
+                .with_inner_size(mini.size)
+                .with_min_inner_size([240.0, 56.0])
+                .with_window_level(app::on_top_window_level(mini.on_top))
+                // egui applies this native attribute on Windows only.
+                .with_taskbar(mini.taskbar);
+            match mini.position {
+                Some([x, y]) => viewport.with_position([x, y]),
+                None => viewport,
+            }
         }
-        viewport
+        None => {
+            let size = inner_size.unwrap_or([1240.0, 800.0]);
+            let mut viewport = viewport
+                // macOS: no title bar strip above the app. The content runs to
+                // the top edge and the traffic lights float over it, the way
+                // every other music player on the platform looks; the interface
+                // leaves room for them with `theme::titlebar_inset`.
+                .with_fullsize_content_view(true)
+                .with_titlebar_shown(false)
+                .with_title_shown(false)
+                // Windows has no equivalent to macOS's floating traffic lights.
+                // Removing its decorations lets the app surface fill the window.
+                .with_decorations(main_window_decorated(cfg!(windows)))
+                .with_inner_size(size)
+                .with_min_inner_size(inner_size.unwrap_or([760.0, 520.0]))
+                .with_fullscreen(fullscreen);
+            if inner_size.is_some() {
+                viewport = viewport.with_max_inner_size(size);
+            }
+            viewport
+        }
     };
     eframe::NativeOptions {
         viewport,
@@ -656,11 +722,11 @@ mod native_window_tests {
 
     #[test]
     fn only_an_unpinned_main_window_persists_its_framework_geometry() {
-        let options = native_options(false, None);
+        let options = native_options(false, None, None);
         assert!(options.persist_window);
         assert!(options.persistence_path.is_none());
         assert_eq!(options.viewport.taskbar, Some(true));
-        let capture = native_options(false, Some([460.0, 96.0]));
+        let capture = native_options(false, Some([460.0, 96.0]), None);
         assert!(
             !capture.persist_window && capture.persistence_path.is_some(),
             "a remembered geometry must not resize a capture"
@@ -668,8 +734,35 @@ mod native_window_tests {
     }
 
     #[test]
+    fn a_mini_only_window_keeps_its_own_shape_and_store() {
+        let mini = MiniWindow {
+            size: egui::vec2(520.0, 96.0),
+            position: Some([120.0, 240.0]),
+            on_top: true,
+            taskbar: false,
+            storage_path: std::path::PathBuf::from("/tmp/fastpotify-mini-test.ron"),
+        };
+        let options = native_options(false, None, Some(mini));
+        assert_eq!(options.viewport.inner_size, Some(egui::vec2(520.0, 96.0)));
+        assert_eq!(options.viewport.position, Some(egui::pos2(120.0, 240.0)));
+        assert_eq!(options.viewport.decorations, Some(false));
+        assert_eq!(options.viewport.taskbar, Some(false));
+        assert!(
+            !options.persist_window,
+            "the mini player keeps its size in settings, not in eframe's store"
+        );
+        assert!(
+            options
+                .persistence_path
+                .as_deref()
+                .is_some_and(|path| path.ends_with("fastpotify-mini-test.ron")),
+            "a store of its own, or eframe restores the main window's geometry"
+        );
+    }
+
+    #[test]
     fn main_window_uses_the_platform_decoration_policy() {
-        let options = native_options(false, None);
+        let options = native_options(false, None, None);
         assert_eq!(options.viewport.decorations, Some(!cfg!(windows)));
         assert_eq!(options.viewport.fullsize_content_view, Some(true));
         assert_eq!(options.viewport.titlebar_shown, Some(false));
@@ -680,7 +773,7 @@ mod native_window_tests {
     fn demo_size_parses_width_by_height() {
         assert_eq!(parse_demo_size("760x800").unwrap(), [760.0, 800.0]);
         assert!(parse_demo_size("wide").is_err());
-        let options = native_options(false, Some([760.0, 800.0]));
+        let options = native_options(false, Some([760.0, 800.0]), None);
         assert_eq!(options.viewport.inner_size, Some(egui::vec2(760.0, 800.0)));
         assert_eq!(
             options.viewport.min_inner_size,
