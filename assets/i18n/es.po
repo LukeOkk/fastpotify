@@ -6,7 +6,7 @@ msgstr ""
 "Project-Id-Version: Fastpotify\n"
 "Report-Msgid-Bugs-To: https://github.com/crmne/fastpotify/issues/new?"
 "template=translation.yml\n"
-"POT-Creation-Date: 2026-09-09 16:31+0200\n"
+"POT-Creation-Date: 2026-09-12 22:51-0300\n"
 "PO-Revision-Date: 2026-09-09 13:30+0000\n"
 "Last-Translator: Fastpotify contributors\n"
 "Language-Team: Spanish\n"
@@ -48,7 +48,7 @@ msgstr "Orden personalizado local"
 msgid "Spotify custom order"
 msgstr "Orden personalizado de Spotify"
 
-#: src/ui/sidebar.rs:503 src/i18n.rs:102 src/i18n.rs:105
+#: src/ui/sidebar.rs:503 src/i18n.rs:281 src/i18n.rs:284
 msgid "Home"
 msgstr "Inicio"
 
@@ -56,52 +56,52 @@ msgstr "Inicio"
 msgid "Search"
 msgstr "Buscar"
 
-#: src/ui/sidebar.rs:546
+#: src/ui/sidebar.rs:557
 msgid "Library"
 msgstr "Biblioteca"
 
-#: src/ui/sidebar.rs:559
+#: src/ui/sidebar.rs:570
 msgid "Hide sidebar (Ctrl+B)"
 msgstr "Ocultar barra lateral (Ctrl+B)"
 
-#: src/ui/sidebar.rs:560
+#: src/ui/sidebar.rs:571
 msgid "Hide sidebar (Cmd+B)"
 msgstr "Ocultar barra lateral (Cmd+B)"
 
-#: src/ui/sidebar.rs:574
+#: src/ui/sidebar.rs:585
 msgid "Create a playlist"
 msgstr "Crear una playlist"
 
-#: src/ui/sidebar.rs:590
+#: src/ui/sidebar.rs:601
 msgid "Search Your Library"
 msgstr "Buscar en la biblioteca"
 
-#: src/ui/sidebar.rs:608
+#: src/ui/sidebar.rs:619
 msgid "Playlists"
 msgstr "Playlists"
 
-#: src/ui/sidebar.rs:609
+#: src/ui/sidebar.rs:620
 msgid "Albums"
 msgstr "Álbumes"
 
-#: src/ui/sidebar.rs:610
+#: src/ui/sidebar.rs:621
 msgid "Artists"
 msgstr "Artistas"
 
-#: src/ui/sidebar.rs:611
+#: src/ui/sidebar.rs:622
 msgid "Podcasts"
 msgstr "Pódcasts"
 
-#: src/ui/sidebar.rs:631
+#: src/ui/sidebar.rs:642
 msgid "Search in Your Library"
 msgstr "Buscar en tu biblioteca"
 
-#: src/ui/sidebar.rs:765
+#: src/ui/sidebar.rs:776
 msgid "Artist"
 msgstr "Artista"
 
 #. Translators: Keep {count} exactly as written. It becomes the number of liked songs.
-#: src/i18n.rs:66
+#: src/i18n.rs:74
 #, rust-format
 msgid "Playlist • {count} song"
 msgid_plural "Playlist • {count} songs"

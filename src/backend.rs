@@ -98,6 +98,8 @@ pub enum ApiRequest {
     },
     Categories {
         generation: u64,
+        /// Names the catalogue in the listener's language when it can.
+        locale: String,
     },
     CategoryPlaylists {
         id: String,
@@ -2413,10 +2415,40 @@ async fn handle(api: &ApiGateway, request: ApiRequest) -> (ApiResponse, Option<A
                 result,
             }
         }
-        ApiRequest::Categories { generation } => ApiResponse::Categories {
-            generation,
-            result: routed!(categories(0, 50)).map(|page| page.items),
-        },
+        ApiRequest::Categories { generation, locale } => {
+            // Spotify pages this endpoint at 50, and there are more than 50
+            // categories in most markets, so one request returns a truncated
+            // grid. Walk until the catalogue stops handing out new ones.
+            const PAGE: u32 = 50;
+            const MAX_PAGES: u32 = 20;
+            let mut items = Vec::new();
+            let mut result = Ok(());
+            for page in 0..MAX_PAGES {
+                match routed!(categories(page * PAGE, PAGE, Some(locale.as_str()))) {
+                    Ok(body) => {
+                        let short = body.items.len() < PAGE as usize;
+                        items.extend(body.items);
+                        // `total` is the honest end; a short page is the
+                        // fallback for a catalogue that does not report one.
+                        if short || (body.total > 0 && items.len() >= body.total as usize) {
+                            break;
+                        }
+                    }
+                    // Keep whatever arrived: a half-filled grid beats an error
+                    // page when the first pages already succeeded.
+                    Err(error) => {
+                        if items.is_empty() {
+                            result = Err(error);
+                        }
+                        break;
+                    }
+                }
+            }
+            ApiResponse::Categories {
+                generation,
+                result: result.map(|()| items),
+            }
+        }
         ApiRequest::CategoryPlaylists { id, name } => {
             let direct = routed!(category_playlists(&id, 50)).map(|page| page.items);
             // Spotify retired the category feed in November 2024, so an app

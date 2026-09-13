@@ -4,10 +4,10 @@ use egui::{Align, CornerRadius, Frame, Layout, Margin, Rect, Sense, Vec2, pos2, 
 
 use crate::api::models::pick_image;
 use crate::app::App;
-use crate::i18n::gettext;
 use crate::model::{Action, Dialog, DragEntry, DragTrack, Loadable, Page};
 use crate::settings::{LIKED_SONGS_KEY, LibraryShelf as Filter, LibrarySort};
 use crate::theme::{self, Icon, Palette};
+use crate::tr;
 
 const DEFAULT_ROW_HEIGHT: f32 = 60.0;
 const COMPACT_ROW_HEIGHT: f32 = 32.0;
@@ -46,10 +46,10 @@ impl Entry {
 fn liked_entry(app: &App) -> Entry {
     Entry {
         image: None,
-        name: gettext(app.locale, "Liked Songs").into_owned(),
+        name: tr!(app.locale, "Liked Songs").into_owned(),
         subtitle: match app.library.liked.total {
             Some(total) => app.locale.liked_song_count(total),
-            None => gettext(app.locale, "Playlist").into_owned(),
+            None => tr!(app.locale, "Playlist").into_owned(),
         },
         page: Page::LikedSongs,
         uri: String::new(),
@@ -88,21 +88,12 @@ fn selected_sort(app: &App, shelf: Filter) -> LibrarySort {
 fn sort_menu(app: &mut App, ui: &mut egui::Ui, shelf: Filter, selected: LibrarySort) {
     let locale = app.locale;
     let labels = [
-        (LibrarySort::Library, gettext(locale, "Library order")),
-        (
-            LibrarySort::RecentlyPlayed,
-            gettext(locale, "Recently played"),
-        ),
-        (LibrarySort::Name, gettext(locale, "Name")),
-        (
-            LibrarySort::RecentlyAdded,
-            gettext(locale, "Recently added"),
-        ),
-        (LibrarySort::Local, gettext(locale, "Local custom order")),
-        (
-            LibrarySort::Spotify,
-            gettext(locale, "Spotify custom order"),
-        ),
+        (LibrarySort::Library, tr!(locale, "Library order")),
+        (LibrarySort::RecentlyPlayed, tr!(locale, "Recently played")),
+        (LibrarySort::Name, tr!(locale, "Name")),
+        (LibrarySort::RecentlyAdded, tr!(locale, "Recently added")),
+        (LibrarySort::Local, tr!(locale, "Local custom order")),
+        (LibrarySort::Spotify, tr!(locale, "Spotify custom order")),
     ];
     let label = &labels
         .iter()
@@ -500,7 +491,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
         ui,
         &palette,
         Icon::House,
-        &gettext(locale, "Home"),
+        &tr!(locale, "Home"),
         page == Page::Home,
     )
     .clicked()
@@ -511,7 +502,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
         ui,
         &palette,
         Icon::Search,
-        &gettext(locale, "Search"),
+        &tr!(locale, "Search"),
         page == Page::Search,
     )
     .clicked()
@@ -552,12 +543,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
         ui.add_space(6.0);
         theme::icon(ui, Icon::Library, 22.0, palette.secondary);
         ui.add_space(2.0);
-        theme::text(
-            ui,
-            gettext(locale, "Library"),
-            theme::bold(15.0),
-            palette.text,
-        );
+        theme::text(ui, tr!(locale, "Library"), theme::bold(15.0), palette.text);
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             ui.spacing_mut().item_spacing.x = 2.0;
             if theme::icon_button(
@@ -567,8 +553,8 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
                 palette.secondary,
                 palette.text,
                 super::keys::platform_shortcut(
-                    &gettext(locale, "Hide sidebar (Ctrl+B)"),
-                    &gettext(locale, "Hide sidebar (Cmd+B)"),
+                    &tr!(locale, "Hide sidebar (Ctrl+B)"),
+                    &tr!(locale, "Hide sidebar (Cmd+B)"),
                 ),
             )
             .clicked()
@@ -582,7 +568,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
                 16.0,
                 palette.secondary,
                 palette.text,
-                &gettext(locale, "Create a playlist"),
+                &tr!(locale, "Create a playlist"),
             )
             .clicked()
             {
@@ -598,7 +584,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
                 16.0,
                 palette.secondary,
                 palette.text,
-                &gettext(locale, "Search Your Library"),
+                &tr!(locale, "Search Your Library"),
             )
             .clicked()
             {
@@ -616,10 +602,10 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
         for (value, label) in [
-            (Filter::Playlists, gettext(locale, "Playlists")),
-            (Filter::Albums, gettext(locale, "Albums")),
-            (Filter::Artists, gettext(locale, "Artists")),
-            (Filter::Podcasts, gettext(locale, "Podcasts")),
+            (Filter::Playlists, tr!(locale, "Playlists")),
+            (Filter::Albums, tr!(locale, "Albums")),
+            (Filter::Artists, tr!(locale, "Artists")),
+            (Filter::Podcasts, tr!(locale, "Podcasts")),
         ] {
             if theme::soft_button(ui, &palette, None, &label, filter == value).clicked() {
                 filter = value;
@@ -639,7 +625,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
             &palette,
             egui::Id::new("sidebar-search"),
             &mut app.library.filter,
-            &gettext(locale, "Search in Your Library"),
+            &tr!(locale, "Search in Your Library"),
             ui.available_width() - 4.0,
         );
         if focus_search {
@@ -773,7 +759,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
                 entries.push(Entry {
                     image: pick_image(&artist.images, 64).map(str::to_string),
                     name: artist.name.clone(),
-                    subtitle: gettext(locale, "Artist").into_owned(),
+                    subtitle: tr!(locale, "Artist").into_owned(),
                     page: Page::Artist(artist.id.clone()),
                     uri: artist.uri.clone(),
                     round: true,

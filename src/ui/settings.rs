@@ -479,6 +479,41 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     });
 
     section(ui, &palette, "Appearance", |ui| {
+        widgets::setting_row(
+            ui,
+            &palette,
+            "Language",
+            "Automatic follows your system's language.",
+            |ui| {
+                // Every language is written in itself, so a listener looking
+                // at an interface they cannot read still finds their own.
+                let system = crate::i18n::Locale::from_system();
+                let automatic = format!("Automatic ({})", system.native_name());
+                let chosen = app.settings.locale_choice();
+                let label = chosen.map_or(automatic.as_str(), |locale| locale.native_name());
+                egui::ComboBox::new("settings-language", "")
+                    .selected_text(label)
+                    .show_ui(ui, |ui| {
+                        if ui.selectable_label(chosen.is_none(), &automatic).clicked()
+                            && chosen.is_some()
+                        {
+                            app.set_language(None);
+                            changed = true;
+                        }
+                        for locale in crate::i18n::LOCALES {
+                            let selected = chosen == Some(*locale);
+                            if ui
+                                .selectable_label(selected, locale.native_name())
+                                .clicked()
+                                && !selected
+                            {
+                                app.set_language(Some(*locale));
+                                changed = true;
+                            }
+                        }
+                    });
+            },
+        );
         widgets::setting_row(ui, &palette, "Theme", "", |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 6.0;

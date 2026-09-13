@@ -45,7 +45,8 @@ struct Cli {
     #[arg(long)]
     demo_show: Option<String>,
 
-    /// Language for the navigation translation pilot. Requires demo mode.
+    /// Language to draw this run in, whatever the Language setting says.
+    /// Requires demo mode.
     #[cfg(feature = "demo")]
     #[arg(long, value_enum)]
     demo_language: Option<fastpotify::i18n::Locale>,
@@ -399,7 +400,7 @@ fn main() -> eframe::Result<()> {
         fastpotify::demo::populate(&mut app);
         fastpotify::demo::apply_flags(&mut app, cli.demo_page.as_deref(), cli.demo_show.as_deref());
         if let Some(locale) = cli.demo_language {
-            app.locale = locale;
+            app.set_locale_override(locale);
         }
     }
     #[cfg(feature = "demo")]

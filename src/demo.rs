@@ -118,6 +118,48 @@ const CATEGORIES: &[(&str, &str)] = &[
     ("wellness", "Wellness"),
     ("trendsetters", "Trendsetters"),
     ("mixed-by", "Mixed By"),
+    ("hiphop", "Hip-Hop"),
+    ("rock", "Rock"),
+    ("indie", "Indie"),
+    ("charts", "Charts"),
+    ("discover", "Discover"),
+    ("rnb", "R&B"),
+    ("mood", "Mood"),
+    ("workout", "Workout"),
+    ("edm_dance", "Dance/Electronic"),
+    ("metal", "Metal"),
+    ("sleep", "Sleep"),
+    ("party", "Party"),
+    ("jazz", "Jazz"),
+    ("classical", "Classical"),
+    ("chill", "Chill"),
+    ("romance", "Romance"),
+    ("folk_americana", "Folk & Acoustic"),
+    ("soul", "Soul"),
+    ("gaming", "Gaming"),
+    ("kpop", "K-Pop"),
+    ("anime", "Anime"),
+    ("punk", "Punk"),
+    ("blues", "Blues"),
+    ("reggae", "Reggae"),
+    ("student", "Student"),
+    ("trending", "Trending"),
+    ("radar", "Radar"),
+    ("alternative", "Alternative"),
+    ("gospel", "Christian & Gospel"),
+    ("arab", "Arab"),
+    ("desi", "Desi"),
+    ("afro", "Afro"),
+    ("caribbean", "Caribbean"),
+    ("instrumental", "Instrumental"),
+    ("kids_family", "Kids & Family"),
+    ("comedy", "Comedy"),
+    ("documentary", "Documentary"),
+    ("educational", "Educational"),
+    ("news_politics", "News & Politics"),
+    ("tv_film", "TV & Film"),
+    ("travel", "Travel"),
+    ("decades", "Decades"),
 ];
 
 const PLAYLISTS: &[&str] = &[
@@ -681,7 +723,7 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
             "category" => app.open(Page::Category("pop".into())),
             // The category whose playlist feed Spotify retired.
             "category-retired" => app.open(Page::Category("cumbia".into())),
-            "german" => app.locale = crate::i18n::Locale::German,
+            "german" => app.set_locale_override(crate::i18n::Locale::German),
             "update" => {
                 app.update = Some(crate::updates::Release {
                     version: "0.7.1".into(),
@@ -1025,7 +1067,9 @@ mod tests {
         use egui::accesskit::{Action as AccessibleAction, Role};
         for &locale in Locale::value_variants() {
             let (ctx, mut app) = accessible_app(&format!("translated-sidebar-{locale:?}"));
-            app.locale = locale;
+            // Through the setting, so this covers the whole chain a listener
+            // picking their language goes down.
+            app.set_language(Some(locale));
             accessible_frame(&ctx, &mut app, vec![]);
             let tree = accessible_frame(&ctx, &mut app, vec![]);
             let home = accessible_node(&tree, &gettext(locale, "Home"), Role::Button);
@@ -1654,6 +1698,60 @@ mod tests {
                 ..
             }]
         ));
+        app.backend.shutdown();
+    }
+
+    /// Every string the page painted. The language picker is a combo box,
+    /// which egui does not name in the accessibility tree, so its label has
+    /// to be read off the frame itself.
+    fn painted_text(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
+        fn walk(shape: &egui::Shape, found: &mut Vec<String>) {
+            match shape {
+                egui::Shape::Text(text) => found.push(text.galley.text().to_string()),
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| walk(shape, found)),
+                _ => {}
+            }
+        }
+        let mut found = Vec::new();
+        for clipped in shapes {
+            walk(&clipped.shape, &mut found);
+        }
+        found
+    }
+
+    #[test]
+    fn settings_name_every_language_in_itself_and_say_which_one_automatic_is() {
+        let (ctx, mut app) = accessible_app("language-picker");
+        app.open(Page::Settings);
+        let render = |app: &mut App| {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1280.0, 8000.0),
+                    )),
+                    ..Default::default()
+                },
+                |ui| crate::ui::settings::show(app, ui),
+            );
+            output.textures_delta.clear();
+            painted_text(&output.shapes)
+        };
+        render(&mut app);
+        let page = render(&mut app);
+        assert!(page.iter().any(|text| text == "Language"));
+        assert!(
+            page.iter().any(|text| text == "Automatic (English)"),
+            "following the desktop must say which language that is"
+        );
+
+        app.set_language(Some(crate::i18n::Locale::Japanese));
+        let page = render(&mut app);
+        assert!(
+            page.iter().any(|text| text == "日本語"),
+            "a language is named in its own script, not in English"
+        );
+        assert!(!page.iter().any(|text| text == "Japanese"));
         app.backend.shutdown();
     }
 

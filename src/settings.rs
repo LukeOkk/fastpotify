@@ -191,6 +191,13 @@ pub struct Settings {
     pub audio_cache: bool,
     pub audio_cache_mb: u64,
     pub theme: ThemeChoice,
+    /// The language the interface is drawn in, as a language tag (`"es"`,
+    /// `"pt-BR"`). `None` -- the default, and what every settings file
+    /// written before this existed says -- follows the desktop's own
+    /// language. A tag this build has no catalog for follows it too, so a
+    /// file written by a newer Fastpotify still loads here.
+    #[serde(default)]
+    pub language: Option<String>,
     #[serde(default)]
     pub accent_color: AccentColor,
     /// Tint the interface with the colour of the playing album's art.
@@ -338,6 +345,7 @@ impl Default for Settings {
             audio_cache: true,
             audio_cache_mb: 1024,
             theme: ThemeChoice::Oled,
+            language: None,
             accent_color: AccentColor::White,
             accent_from_art: true,
             volume: (u16::MAX as u32 * 70 / 100) as u16,
@@ -419,6 +427,21 @@ fn default_mini_player_split() -> f32 {
 }
 
 impl Settings {
+    /// The language to draw the interface in: the listener's choice, or the
+    /// desktop's own language while they have not made one.
+    pub fn locale(&self) -> crate::i18n::Locale {
+        self.locale_choice()
+            .unwrap_or_else(crate::i18n::Locale::from_system)
+    }
+
+    /// The language the listener picked, `None` while they are following the
+    /// desktop. The picker shows this; the interface uses [`Self::locale`].
+    pub fn locale_choice(&self) -> Option<crate::i18n::Locale> {
+        self.language
+            .as_deref()
+            .and_then(crate::i18n::Locale::from_language_tag)
+    }
+
     pub fn library_pins(&self) -> Vec<String> {
         let mut pins = self.pinned_contexts.clone();
         if !self.liked_songs_pinned {
@@ -494,6 +517,31 @@ mod tests {
         let json = serde_json::to_string(&settings).unwrap();
         let restored: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(restored.accent_color, AccentColor::Oled);
+    }
+
+    #[test]
+    fn a_settings_file_without_a_language_follows_the_desktop() {
+        let settings: Settings = serde_json::from_str("{}").unwrap();
+        assert_eq!(settings.locale_choice(), None);
+        assert_eq!(settings.locale(), crate::i18n::Locale::from_system());
+    }
+
+    #[test]
+    fn a_chosen_language_round_trips_and_an_unknown_one_falls_back() {
+        let settings = Settings {
+            language: Some(crate::i18n::Locale::PortugueseBrazil.tag().to_string()),
+            ..Settings::default()
+        };
+        let json = serde_json::to_string(&settings).unwrap();
+        let restored: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            restored.locale(),
+            crate::i18n::Locale::PortugueseBrazil,
+            "a saved language outranks the desktop's"
+        );
+        // A language a newer Fastpotify carries must not break this one.
+        let newer: Settings = serde_json::from_str(r#"{"language":"kl-GL"}"#).unwrap();
+        assert_eq!(newer.locale(), crate::i18n::Locale::from_system());
     }
 
     #[test]

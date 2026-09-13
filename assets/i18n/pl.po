@@ -6,7 +6,7 @@ msgstr ""
 "Project-Id-Version: Fastpotify\n"
 "Report-Msgid-Bugs-To: https://github.com/crmne/fastpotify/issues/new?"
 "template=translation.yml\n"
-"POT-Creation-Date: 2026-09-09 16:31+0200\n"
+"POT-Creation-Date: 2026-09-12 22:51-0300\n"
 "PO-Revision-Date: 2026-09-09 13:30+0000\n"
 "Last-Translator: Fastpotify contributors\n"
 "Language-Team: Polish\n"
@@ -49,7 +49,7 @@ msgstr "Własna kolejność lokalna"
 msgid "Spotify custom order"
 msgstr "Własna kolejność Spotify"
 
-#: src/ui/sidebar.rs:503 src/i18n.rs:102 src/i18n.rs:105
+#: src/ui/sidebar.rs:503 src/i18n.rs:281 src/i18n.rs:284
 msgid "Home"
 msgstr "Start"
 
@@ -57,52 +57,52 @@ msgstr "Start"
 msgid "Search"
 msgstr "Szukaj"
 
-#: src/ui/sidebar.rs:546
+#: src/ui/sidebar.rs:557
 msgid "Library"
 msgstr "Biblioteka"
 
-#: src/ui/sidebar.rs:559
+#: src/ui/sidebar.rs:570
 msgid "Hide sidebar (Ctrl+B)"
 msgstr "Ukryj pasek boczny (Ctrl+B)"
 
-#: src/ui/sidebar.rs:560
+#: src/ui/sidebar.rs:571
 msgid "Hide sidebar (Cmd+B)"
 msgstr "Ukryj pasek boczny (Cmd+B)"
 
-#: src/ui/sidebar.rs:574
+#: src/ui/sidebar.rs:585
 msgid "Create a playlist"
 msgstr "Utwórz playlistę"
 
-#: src/ui/sidebar.rs:590
+#: src/ui/sidebar.rs:601
 msgid "Search Your Library"
 msgstr "Przeszukaj bibliotekę"
 
-#: src/ui/sidebar.rs:608
+#: src/ui/sidebar.rs:619
 msgid "Playlists"
 msgstr "Playlisty"
 
-#: src/ui/sidebar.rs:609
+#: src/ui/sidebar.rs:620
 msgid "Albums"
 msgstr "Albumy"
 
-#: src/ui/sidebar.rs:610
+#: src/ui/sidebar.rs:621
 msgid "Artists"
 msgstr "Wykonawcy"
 
-#: src/ui/sidebar.rs:611
+#: src/ui/sidebar.rs:622
 msgid "Podcasts"
 msgstr "Podcasty"
 
-#: src/ui/sidebar.rs:631
+#: src/ui/sidebar.rs:642
 msgid "Search in Your Library"
 msgstr "Przeszukaj swoją bibliotekę"
 
-#: src/ui/sidebar.rs:765
+#: src/ui/sidebar.rs:776
 msgid "Artist"
 msgstr "Wykonawca"
 
 #. Translators: Keep {count} exactly as written. It becomes the number of liked songs.
-#: src/i18n.rs:66
+#: src/i18n.rs:74
 #, rust-format
 msgid "Playlist • {count} song"
 msgid_plural "Playlist • {count} songs"

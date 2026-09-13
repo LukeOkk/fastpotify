@@ -216,8 +216,13 @@ pub struct App {
     /// Sample data is loaded; Spotify requests are disabled.
     pub offline: bool,
     pub palette: Palette,
-    /// Translation pilot selected by demo mode. Production stays in English.
+    /// The language the interface is drawn in: the listener's setting, or
+    /// the desktop's own language. Read it once per function into a local --
+    /// it is `Copy`, so it never holds a borrow of the app.
     pub locale: crate::i18n::Locale,
+    /// A language forced for this run (`--demo-language`), which outranks the
+    /// setting so a screenshot stays in the language it was asked for.
+    locale_override: Option<crate::i18n::Locale>,
     #[cfg(any(test, feature = "demo"))]
     pub demo_windows_controls: bool,
     applied_dark: Option<bool>,
@@ -545,6 +550,9 @@ impl App {
             .filter(|page| !matches!(page, Page::Settings | Page::Queue))
             .unwrap_or(Page::Home);
 
+        // Read before `settings` moves into the app.
+        let locale = settings.locale();
+
         let mut app = Self {
             dirs,
             settings,
@@ -568,7 +576,8 @@ impl App {
             control_devices_stale: true,
             offline: false,
             palette: Palette::dark(),
-            locale: crate::i18n::Locale::English,
+            locale,
+            locale_override: None,
             #[cfg(any(test, feature = "demo"))]
             demo_windows_controls: false,
             applied_dark: None,
@@ -734,6 +743,28 @@ impl App {
         // network, so the tab has rows before Spotify has answered.
         app.rebuild_recents();
         app
+    }
+
+    /// Draws the interface in `language` from the next frame on, and keeps
+    /// the choice. `None` goes back to following the desktop's language.
+    pub fn set_language(&mut self, language: Option<crate::i18n::Locale>) {
+        self.settings.language = language.map(|locale| locale.tag().to_string());
+        self.refresh_locale();
+    }
+
+    /// A language for this run only, outranking the setting.
+    #[cfg(any(test, feature = "demo"))]
+    pub fn set_locale_override(&mut self, locale: crate::i18n::Locale) {
+        self.locale_override = Some(locale);
+        self.refresh_locale();
+    }
+
+    /// Applies whichever language now wins. Cheap: the system answer behind
+    /// it is detected once.
+    pub fn refresh_locale(&mut self) {
+        self.locale = self
+            .locale_override
+            .unwrap_or_else(|| self.settings.locale());
     }
 
     /// Watches the queue control clients fill and keeps the snapshots they
@@ -2807,6 +2838,7 @@ impl App {
                     self.explore_generation = self.explore_generation.wrapping_add(1);
                     self.backend.api(ApiRequest::Categories {
                         generation: self.explore_generation,
+                        locale: self.locale.spotify_locale().to_owned(),
                     });
                 }
             }
@@ -6525,6 +6557,7 @@ impl App {
             }
             Action::SettingsChanged => {
                 self.settings_dirty = true;
+                self.refresh_locale();
                 ctx.set_theme(match self.settings.theme {
                     ThemeChoice::Dark => egui::ThemePreference::Dark,
                     ThemeChoice::Light => egui::ThemePreference::Light,
@@ -7157,12 +7190,11 @@ impl App {
         // tray as it would without one. The saved `mini_player_open` is left
         // alone, so the pair comes back together on the next window.
         //
-        // Leaving the mini player up alone is not available here: the main
-        // window has to keep painting to host it, and neither way of taking
-        // it off the screen survives. `Visible(false)` detaches the view from
-        // the GL context and the next frame dies inside glutin on macOS, and
-        // `Minimized(true)` is refused outright for a window with no title
-        // bar, which is how this one is built.
+        // Taking the main window off screen instead does not work: minimizing
+        // it sends the mini player to the Dock with it, because an immediate
+        // child viewport is an AppKit child window and follows its parent, and
+        // `Visible(false)` detaches the view from the shared GL context so the
+        // next frame dies inside glutin. Measured on macOS 27, not assumed.
         if ctx.input(|input| input.viewport().close_requested())
             && !self.quit_requested
             && self.hides_to_tray()
@@ -9370,6 +9402,27 @@ mod tests {
                 tray: false,
             },
         )
+    }
+
+    #[test]
+    fn the_language_setting_applies_without_a_restart_and_demo_mode_outranks_it() {
+        use crate::i18n::Locale;
+        let mut app = test_app("language-setting");
+        assert_eq!(app.locale, Locale::from_system());
+
+        app.set_language(Some(Locale::Spanish));
+        assert_eq!(app.locale, Locale::Spanish, "no restart");
+        assert_eq!(app.settings.language.as_deref(), Some("es"), "persisted");
+
+        // A screenshot run stays in the language it was asked for, whatever
+        // the listener saved.
+        app.set_locale_override(Locale::German);
+        app.set_language(Some(Locale::Spanish));
+        assert_eq!(app.locale, Locale::German);
+
+        app.locale_override = None;
+        app.set_language(None);
+        assert_eq!(app.locale, Locale::from_system(), "back to the desktop's");
     }
 
     #[test]
@@ -12542,7 +12595,10 @@ mod tests {
         output.textures_delta.clear();
         let builders = mini_builders();
         assert_eq!(builders[0].position, None);
-        assert!(builders[0].inner_size.is_some(), "only the position is lost");
+        assert!(
+            builders[0].inner_size.is_some(),
+            "only the position is lost"
+        );
         app.backend.shutdown();
     }
 

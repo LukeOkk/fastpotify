@@ -9,10 +9,15 @@ if [[ "$mode" != update && "$mode" != --check ]]; then
 fi
 translation_template=$(mktemp)
 trap 'rm -f "$translation_template"' EXIT
+# The UI marks strings with the tr!/trn! macros; the functions behind them
+# are still extracted for the few callers that use them directly. xgettext
+# only recognises a macro when the keyword carries its "!".
 xgettext --language=Rust --from-code=UTF-8 \
     --keyword= --keyword=gettext:2 --keyword=ngettext:2,3 \
+    --keyword='tr!:2' --keyword='trn!:2,3' \
     --add-comments=Translators: \
     --flag=ngettext:2:rust-format --flag=ngettext:3:rust-format \
+    --flag='trn!:2:rust-format' --flag='trn!:3:rust-format' \
     --package-name=Fastpotify --copyright-holder='Fastpotify contributors' \
     --msgid-bugs-address='https://github.com/crmne/fastpotify/issues/new?template=translation.yml' \
     --files-from=assets/i18n/POTFILES --output="$translation_template"

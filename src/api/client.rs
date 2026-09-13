@@ -988,13 +988,22 @@ impl ApiClient {
         .await
     }
 
-    pub async fn categories(&self, offset: u32, limit: u32) -> Result<Page<Category>> {
-        self.get::<Categories>(
-            "/browse/categories",
-            &[("limit", limit.to_string()), ("offset", offset.to_string())],
-        )
-        .await
-        .map(|body| body.categories)
+    /// One page of browse categories. `locale` asks Spotify to name them in
+    /// the listener's language; the catalogue answers in English when it has
+    /// no translation, which is the same fallback the rest of the app uses.
+    pub async fn categories(
+        &self,
+        offset: u32,
+        limit: u32,
+        locale: Option<&str>,
+    ) -> Result<Page<Category>> {
+        let mut query = vec![("limit", limit.to_string()), ("offset", offset.to_string())];
+        if let Some(locale) = locale {
+            query.push(("locale", locale.to_owned()));
+        }
+        self.get::<Categories>("/browse/categories", &query)
+            .await
+            .map(|body| body.categories)
     }
 
     /// Spotify retired this endpoint in November 2024: registrations made

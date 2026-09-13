@@ -8,13 +8,21 @@ Fastpotify uses gettext `.po` files, so contributors can use existing translatio
 editors such as Poedit or import the catalogs into Weblate. Translations are
 bundled in the application. No translation service is contacted at runtime.
 
-## Pilot scope
+## Choosing a language
 
-On `main`, after 0.7.1, the pilot covers Home and Search navigation, Library
-controls, filters, search hints, and the Liked Songs name and count. These
-languages are available for preview in demo mode:
+Fastpotify starts in the language the desktop is set to -- read from macOS's
+preferred languages, Windows's preferred UI languages, or the `LANGUAGE`,
+`LC_ALL`, `LC_MESSAGES` and `LANG` variables -- and falls back to English when
+that language has no catalog here. Settings › Appearance › Language overrides
+it, listing every bundled language under its own name; the choice applies
+immediately and is saved. Regions map to the nearest catalog: `es_UY` and
+`es_ES` are both Spanish, `de_AT` is German, `pt_BR` and `pt_PT` are separate
+catalogs, and `zh_TW`, `zh_HK` and `zh-Hant` are Traditional Chinese while
+`zh_CN`, `zh_SG` and `zh-Hans` are Simplified.
 
-| Language | `--demo-language` |
+## Languages
+
+| Language | Tag (`--demo-language`, `settings.json`) |
 | --- | --- |
 | English | `en` |
 | Spanish | `es` |
@@ -31,13 +39,12 @@ languages are available for preview in demo mode:
 | Chinese (Simplified) | `zh-Hans` |
 | Chinese (Traditional) | `zh-Hant` |
 
-The production interface remains English while the translation workflow and
-coverage are developed. These are initial pilot translations, not complete
-localized interfaces or a language setting. Corrections from fluent speakers
-are welcome.
+Coverage is still growing: a message no catalog has translated is shown in
+English rather than left blank, so an incomplete language is usable while it
+fills in. Corrections from fluent speakers are welcome.
 
 Song, album, artist and playlist names come from Spotify or their creators and
-are kept as provided. Interface text outside the pilot remains English.
+are kept as provided, as are Spotify's own brand terms.
 
 ## Edit and preview
 
@@ -62,10 +69,12 @@ scroll state do not carry between captures.
 
 ## Update the template and check catalogs
 
-Maintainers mark source phrases with `gettext(locale, "English text")` and whole
-counted phrases with `ngettext(locale, "Singular", "Plural", count)`. Add any
-new source file to `assets/i18n/POTFILES`. With GNU gettext tools that support
-Rust installed, run:
+Maintainers mark source phrases with `tr!(locale, "English text")` and whole
+counted phrases with `trn!(locale, "Singular", "Plural", count)`. The source
+must be a literal: build an interpolated string by translating a
+`{placeholder}` form and calling `.replace()` on the result. Add any new source
+file to `assets/i18n/POTFILES`. With GNU gettext tools that support Rust
+installed, run:
 
 ```sh
 .github/scripts/update-translations.sh

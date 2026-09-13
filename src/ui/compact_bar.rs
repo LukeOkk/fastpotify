@@ -981,9 +981,10 @@ fn volume_popup(app: &mut App, ctx: &egui::Context, screen: Rect, now: Option<&N
     let dismissed = ctx.input(|input| {
         input.key_pressed(egui::Key::Escape)
             || (input.pointer.any_click()
-                && input.pointer.interact_pos().is_some_and(|pos| {
-                    !area.rect.contains(pos) && !button.contains(pos)
-                }))
+                && input
+                    .pointer
+                    .interact_pos()
+                    .is_some_and(|pos| !area.rect.contains(pos) && !button.contains(pos)))
     });
     if dismissed {
         app.show_volume_popup = false;
