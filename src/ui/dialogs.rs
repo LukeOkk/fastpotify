@@ -3,6 +3,7 @@
 use egui::{Align, CornerRadius, Frame, Layout, Margin, Stroke};
 
 use crate::app::App;
+use crate::tr;
 use crate::model::{Action, Dialog};
 use crate::theme;
 
@@ -33,7 +34,7 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
             ui.set_width(420.0);
             match dialog {
                 Dialog::PersonalAppIntro => {
-                    theme::text(ui, "Spend less time waiting for Spotify", theme::bold(20.0), palette.text);
+                    theme::text(ui, tr!(app.locale, "Spend less time waiting for Spotify").into_owned(), theme::bold(20.0), palette.text);
                     ui.add_space(12.0);
                     for text in [
                         "Fastpotify's default connection shares Spotify's request limit with other listeners. When it gets busy, loading music and using playback controls can take longer.",
@@ -45,10 +46,10 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                     }
                     ui.add_space(8.0);
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if theme::pill_button(ui, &palette, "Set up personal app", true).clicked() {
+                        if theme::pill_button(ui, &palette, &tr!(app.locale, "Set up personal app"), true).clicked() {
                             app.actions.push(Action::OpenPersonalAppSetup);
                         }
-                        if theme::pill_button(ui, &palette, "Keep shared app", false).clicked() {
+                        if theme::pill_button(ui, &palette, &tr!(app.locale, "Keep shared app"), false).clicked() {
                             app.actions.push(Action::CloseDialog);
                         }
                     });
@@ -59,9 +60,9 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                     theme::text(
                         ui,
                         if owned {
-                            "Delete playlist?"
+                            tr!(app.locale, "Delete playlist?")
                         } else {
-                            "Remove from Your Library?"
+                            tr!(app.locale, "Remove from Your Library?")
                         },
                         theme::bold(20.0),
                         palette.text,
@@ -81,18 +82,18 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                         .wrap(),
                     );
                     ui.add_space(20.0);
+                    let confirm = if owned {
+                        tr!(app.locale, "Delete")
+                    } else {
+                        tr!(app.locale, "Remove")
+                    };
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if theme::pill_button(
-                            ui,
-                            &palette,
-                            if owned { "Delete" } else { "Remove" },
-                            true,
-                        )
+                        if theme::pill_button(ui, &palette, &confirm, true)
                         .clicked()
                         {
                             app.actions.push(Action::DeletePlaylist(id.clone()));
                         }
-                        if theme::pill_button(ui, &palette, "Cancel", false).clicked() {
+                        if theme::pill_button(ui, &palette, &tr!(app.locale, "Cancel"), false).clicked() {
                             app.actions.push(Action::CloseDialog);
                         }
                     });
@@ -108,9 +109,9 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                     theme::text(
                         ui,
                         if multiple {
-                            "Songs already in this playlist"
+                            tr!(app.locale, "Songs already in this playlist")
                         } else {
-                            "Song already in this playlist"
+                            tr!(app.locale, "Song already in this playlist")
                         },
                         theme::bold(20.0),
                         palette.text,
@@ -127,7 +128,7 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                     );
                     ui.add_space(20.0);
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if theme::pill_button(ui, &palette, "Add anyway", true).clicked() {
+                        if theme::pill_button(ui, &palette, &tr!(app.locale, "Add anyway"), true).clicked() {
                             app.actions.push(Action::ConfirmAddToPlaylist {
                                 playlist_id: playlist_id.clone(),
                                 playlist_name: playlist_name.clone(),
@@ -135,17 +136,17 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                                 position,
                             });
                         }
-                        if theme::pill_button(ui, &palette, "Cancel", false).clicked() {
+                        if theme::pill_button(ui, &palette, &tr!(app.locale, "Cancel"), false).clicked() {
                             app.actions.push(Action::CloseDialog);
                         }
                     });
                 }
                 Dialog::Shortcuts => {
-                    theme::text(ui, "Keyboard shortcuts", theme::bold(20.0), palette.text);
+                    theme::text(ui, tr!(app.locale, "Keyboard shortcuts").into_owned(), theme::bold(20.0), palette.text);
                     ui.add_space(12.0);
                     // `theme::text` truncates, which in a grid makes each cell
-                    // claim almost no width and turns "Ctrl+Shift+A" into
-                    // "Ctrl…". A shortcut is unusable when abbreviated, so
+                    // claim almost no width and turns &tr!(app.locale, "Ctrl+Shift+A") into
+                    // &tr!(app.locale, "Ctrl…"). A shortcut is unusable when abbreviated, so
                     // these cells are sized to their content.
                     let cell = |ui: &mut egui::Ui, text: &str, font: egui::FontId, color| {
                         ui.add(
@@ -180,7 +181,7 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                         });
                     ui.add_space(16.0);
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if theme::pill_button(ui, &palette, "Done", true).clicked() {
+                        if theme::pill_button(ui, &palette, &tr!(app.locale, "Done"), true).clicked() {
                             app.actions.push(Action::CloseDialog);
                         }
                     });
@@ -188,7 +189,7 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                 Dialog::PremiumNeeded => {
                     theme::text(
                         ui,
-                        "This account cannot play music here",
+                        tr!(app.locale, "This account cannot play music here").into_owned(),
                         theme::bold(20.0),
                         palette.text,
                     );
@@ -288,14 +289,14 @@ fn create_playlist(app: &mut App, ui: &mut egui::Ui) {
     else {
         return;
     };
-    theme::text(ui, "New playlist", theme::bold(20.0), palette.text);
+    theme::text(ui, tr!(app.locale, "New playlist").into_owned(), theme::bold(20.0), palette.text);
     ui.add_space(12.0);
-    theme::text(ui, "Name", theme::medium(13.0), palette.secondary);
-    let field = text_field(ui, &palette, "playlist-name", name, "My playlist", true);
+    theme::text(ui, tr!(app.locale, "Name").into_owned(), theme::medium(13.0), palette.secondary);
+    let field = text_field(ui, &palette, "playlist-name", name, &tr!(app.locale, "My playlist"), true);
     ui.add_space(10.0);
     ui.horizontal(|ui| {
-        super::widgets::switch(ui, &palette, "Public playlist", public);
-        theme::text(ui, "Public playlist", theme::regular(14.0), palette.text);
+        super::widgets::switch(ui, &palette, &tr!(app.locale, "Public playlist"), public);
+        theme::text(ui, tr!(app.locale, "Public playlist").into_owned(), theme::regular(14.0), palette.text);
     });
     if !add_uris.is_empty() {
         ui.add_space(6.0);
@@ -319,7 +320,7 @@ fn create_playlist(app: &mut App, ui: &mut egui::Ui) {
         if busy {
             theme::spinner(ui, 18.0, palette.accent);
         } else {
-            let create = theme::pill_button(ui, &palette, "Create", true).clicked() || submit;
+            let create = theme::pill_button(ui, &palette, &tr!(app.locale, "Create"), true).clicked() || submit;
             if create && !name_value.is_empty() {
                 app.actions.push(Action::CreatePlaylist {
                     name: name_value.clone(),
@@ -327,7 +328,7 @@ fn create_playlist(app: &mut App, ui: &mut egui::Ui) {
                     add_uris: uris.clone(),
                 });
             }
-            if theme::pill_button(ui, &palette, "Cancel", false).clicked() {
+            if theme::pill_button(ui, &palette, &tr!(app.locale, "Cancel"), false).clicked() {
                 app.actions.push(Action::CloseDialog);
             }
         }
@@ -346,12 +347,12 @@ fn edit_playlist(app: &mut App, ui: &mut egui::Ui) {
     else {
         return;
     };
-    theme::text(ui, "Edit details", theme::bold(20.0), palette.text);
+    theme::text(ui, tr!(app.locale, "Edit details").into_owned(), theme::bold(20.0), palette.text);
     ui.add_space(12.0);
-    theme::text(ui, "Name", theme::medium(13.0), palette.secondary);
-    text_field(ui, &palette, "edit-name", name, "Playlist name", true);
+    theme::text(ui, tr!(app.locale, "Name").into_owned(), theme::medium(13.0), palette.secondary);
+    text_field(ui, &palette, "edit-name", name, &tr!(app.locale, "Playlist name"), true);
     ui.add_space(10.0);
-    theme::text(ui, "Description", theme::medium(13.0), palette.secondary);
+    theme::text(ui, tr!(app.locale, "Description").into_owned(), theme::medium(13.0), palette.secondary);
     Frame::new()
         .fill(palette.surface)
         .corner_radius(CornerRadius::same(6))
@@ -360,7 +361,7 @@ fn edit_playlist(app: &mut App, ui: &mut egui::Ui) {
             ui.add(
                 egui::TextEdit::multiline(description)
                     .id(egui::Id::new("edit-description"))
-                    .hint_text(egui::RichText::new("Optional description").color(palette.dim))
+                    .hint_text(egui::RichText::new(tr!(app.locale, "Optional description").into_owned()).color(palette.dim))
                     .font(theme::regular(14.0))
                     .frame(egui::Frame::NONE)
                     .desired_rows(3)
@@ -369,8 +370,8 @@ fn edit_playlist(app: &mut App, ui: &mut egui::Ui) {
         });
     ui.add_space(10.0);
     ui.horizontal(|ui| {
-        super::widgets::switch(ui, &palette, "Public playlist", public);
-        theme::text(ui, "Public playlist", theme::regular(14.0), palette.text);
+        super::widgets::switch(ui, &palette, &tr!(app.locale, "Public playlist"), public);
+        theme::text(ui, tr!(app.locale, "Public playlist").into_owned(), theme::regular(14.0), palette.text);
     });
     ui.add_space(20.0);
     let id = id.clone();
@@ -381,7 +382,7 @@ fn edit_playlist(app: &mut App, ui: &mut egui::Ui) {
         if busy {
             theme::spinner(ui, 18.0, palette.accent);
         } else {
-            if theme::pill_button(ui, &palette, "Save", true).clicked() && !name_value.is_empty() {
+            if theme::pill_button(ui, &palette, &tr!(app.locale, "Save"), true).clicked() && !name_value.is_empty() {
                 app.actions.push(Action::UpdatePlaylist {
                     id: id.clone(),
                     name: name_value.clone(),
@@ -389,7 +390,7 @@ fn edit_playlist(app: &mut App, ui: &mut egui::Ui) {
                     public: public_value,
                 });
             }
-            if theme::pill_button(ui, &palette, "Cancel", false).clicked() {
+            if theme::pill_button(ui, &palette, &tr!(app.locale, "Cancel"), false).clicked() {
                 app.actions.push(Action::CloseDialog);
             }
         }

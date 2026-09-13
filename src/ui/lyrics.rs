@@ -5,6 +5,7 @@ use egui::{Align, Frame, Layout, Margin, Sense};
 use crate::app::App;
 use crate::model::{Action, Loadable};
 use crate::theme::{self, Icon};
+use crate::tr;
 
 use super::widgets;
 
@@ -58,9 +59,9 @@ pub(crate) fn header(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
     ui.horizontal(|ui| {
         ui.add_space(4.0);
-        theme::text(ui, "Lyrics", theme::bold(18.0), palette.text);
+        theme::text(ui, tr!(app.locale, "Lyrics").into_owned(), theme::bold(18.0), palette.text);
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if theme::icon_button(ui, Icon::X, 18.0, palette.secondary, palette.text, "Close")
+            if theme::icon_button(ui, Icon::X, 18.0, palette.secondary, palette.text, &tr!(app.locale, "Close"))
                 .clicked()
             {
                 app.actions.push(Action::ToggleLyricsPanel);
@@ -68,7 +69,7 @@ pub(crate) fn header(app: &mut App, ui: &mut egui::Ui) {
             let loaded = matches!(&app.lyrics, Loadable::Loaded(Some(_)));
             if loaded
                 && !app.lyrics_following
-                && theme::pill_button(ui, &palette, "Follow", false).clicked()
+                && theme::pill_button(ui, &palette, &tr!(app.locale, "Follow"), false).clicked()
             {
                 app.lyrics_following = true;
                 app.lyrics_line_shown = None;
@@ -84,7 +85,7 @@ pub(crate) fn header(app: &mut App, ui: &mut egui::Ui) {
                         palette.secondary
                     },
                     palette.text,
-                    "Translate lyrics",
+                    &tr!(app.locale, "Translate lyrics"),
                 )
                 .clicked()
             {
@@ -100,7 +101,7 @@ pub(crate) fn header(app: &mut App, ui: &mut egui::Ui) {
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.add_space(4.0);
-            theme::text(ui, "Translate to", theme::regular(12.5), palette.secondary);
+            theme::text(ui, tr!(app.locale, "Translate to").into_owned(), theme::regular(12.5), palette.secondary);
             let current = app.settings.lyrics_translate_language.clone();
             let current_label = current
                 .as_deref()
@@ -116,7 +117,7 @@ pub(crate) fn header(app: &mut App, ui: &mut egui::Ui) {
                 .show_ui(ui, |ui| {
                     let mut changed = false;
                     if ui
-                        .selectable_label(current.is_none(), "Automatic (system language)")
+                        .selectable_label(current.is_none(), tr!(app.locale, "Automatic (system language)").into_owned())
                         .clicked()
                         && current.is_some()
                     {
@@ -140,7 +141,7 @@ pub(crate) fn header(app: &mut App, ui: &mut egui::Ui) {
             Loadable::Loading => {
                 ui.horizontal(|ui| {
                     theme::spinner(ui, 14.0, palette.accent);
-                    theme::text(ui, "Translating…", theme::regular(12.5), palette.secondary);
+                    theme::text(ui, tr!(app.locale, "Translating…").into_owned(), theme::regular(12.5), palette.secondary);
                 });
             }
             Loadable::Failed(error) => {
@@ -153,7 +154,7 @@ pub(crate) fn header(app: &mut App, ui: &mut egui::Ui) {
                 .on_hover_text(error);
                 ui.add(
                     egui::Label::new(
-                        egui::RichText::new("Set a translation server or API key in Settings.")
+                        egui::RichText::new(tr!(app.locale, "Set a translation server or API key in Settings.").into_owned())
                             .font(theme::regular(12.5))
                             .color(palette.secondary),
                     )
@@ -172,8 +173,8 @@ pub(crate) fn contents(app: &mut App, ui: &mut egui::Ui) {
             ui,
             &palette,
             Icon::Mic,
-            "Nothing playing",
-            "Play a song to see its lyrics.",
+            &tr!(app.locale, "Nothing playing"),
+            &tr!(app.locale, "Play a song to see its lyrics."),
         );
         return;
     };
@@ -187,7 +188,7 @@ pub(crate) fn contents(app: &mut App, ui: &mut egui::Ui) {
             ui.add_space(8.0);
             theme::text(ui, message, theme::regular(13.0), palette.secondary);
             ui.add_space(8.0);
-            if theme::pill_button(ui, &palette, "Try again", false).clicked() {
+            if theme::pill_button(ui, &palette, &tr!(app.locale, "Try again"), false).clicked() {
                 app.request_lyrics();
             }
             return;
@@ -197,8 +198,8 @@ pub(crate) fn contents(app: &mut App, ui: &mut egui::Ui) {
                 ui,
                 &palette,
                 Icon::Mic,
-                "No lyrics",
-                "No lyrics found for this track.",
+                &tr!(app.locale, "No lyrics"),
+                &tr!(app.locale, "No lyrics found for this track."),
             );
             return;
         }
@@ -207,8 +208,8 @@ pub(crate) fn contents(app: &mut App, ui: &mut egui::Ui) {
                 ui,
                 &palette,
                 Icon::Music,
-                "Instrumental",
-                "No timed lyrics for this track.",
+                &tr!(app.locale, "Instrumental"),
+                &tr!(app.locale, "No timed lyrics for this track."),
             );
             return;
         }

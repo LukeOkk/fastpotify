@@ -8,6 +8,7 @@ use crate::api::models::PlayableItem;
 use crate::app::App;
 use crate::model::{Action, Loadable, QueueTab, RowContext};
 use crate::theme::{self, Icon};
+use crate::tr;
 
 use super::widgets::{self, TrackRow};
 
@@ -17,7 +18,7 @@ pub fn page(app: &mut App, ui: &mut egui::Ui) {
     // The queue refreshes on track changes, additions, and while visible.
     let offer_save = !app.queue_playlist_uris().is_empty();
     ui.horizontal(|ui| {
-        theme::text(ui, "Queue", theme::bold(28.0), palette.text);
+        theme::text(ui, tr!(app.locale, "Queue").into_owned(), theme::bold(28.0), palette.text);
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if save_button(ui, &palette, offer_save) {
                 app.actions.push(Action::SaveQueueAsPlaylist);
@@ -62,13 +63,13 @@ pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {
                 picked = widgets::chips(
                     ui,
                     &palette,
-                    &[(QueueTab::Queue, "Queue"), (QueueTab::Recents, "Recent")],
+                    &[(QueueTab::Queue, &tr!(app.locale, "Queue")), (QueueTab::Recents, &tr!(app.locale, "Recent"))],
                     tab,
                 );
             },
             |ui| {
                 close =
-                    theme::icon_button(ui, Icon::X, 18.0, palette.secondary, palette.text, "Close")
+                    theme::icon_button(ui, Icon::X, 18.0, palette.secondary, palette.text, &tr!(app.locale, "Close"))
                         .clicked();
                 save = save_button(ui, &palette, offer_save);
             },
@@ -133,7 +134,7 @@ fn clear_button(app: &mut App, ui: &mut egui::Ui) {
         18.0,
         palette.secondary,
         palette.text,
-        "Clear queue",
+        &tr!(app.locale, "Clear queue"),
     )
     .clicked()
     {
@@ -177,7 +178,7 @@ pub(crate) fn contents(app: &mut App, ui: &mut egui::Ui, compact: bool) {
     // page, so its name is plain text.
     if let Some(from) = app.playing_from().filter(|_| current.is_some()) {
         ui.horizontal(|ui| {
-            theme::text(ui, "Playing from", theme::regular(13.0), palette.secondary);
+            theme::text(ui, tr!(app.locale, "Playing from").into_owned(), theme::regular(13.0), palette.secondary);
             match from.page {
                 Some(page) => {
                     if theme::link(ui, from.name, theme::semibold(13.0), palette.text).clicked() {
@@ -192,7 +193,7 @@ pub(crate) fn contents(app: &mut App, ui: &mut egui::Ui, compact: bool) {
         ui.add_space(10.0);
     }
     if let Some(current) = current.as_ref() {
-        theme::text(ui, "Now playing", theme::semibold(14.0), palette.text);
+        theme::text(ui, tr!(app.locale, "Now playing").into_owned(), theme::semibold(14.0), palette.text);
         ui.add_space(4.0);
         let context = RowContext::Uris(Arc::from([current.uri().to_string()]));
         widgets::track_row(
@@ -222,8 +223,8 @@ pub(crate) fn contents(app: &mut App, ui: &mut egui::Ui, compact: bool) {
             ui,
             &palette,
             Icon::ListVideo,
-            "Nothing queued",
-            "Queued songs appear here.",
+            &tr!(app.locale, "Nothing queued"),
+            &tr!(app.locale, "Queued songs appear here."),
         );
         return;
     }
@@ -241,7 +242,7 @@ pub(crate) fn contents(app: &mut App, ui: &mut egui::Ui, compact: bool) {
         // The trash sits with the songs it removes: only this section is
         // the user's to clear, the context below plays itself.
         ui.horizontal(|ui| {
-            theme::text(ui, "Playing next", theme::semibold(14.0), palette.text);
+            theme::text(ui, tr!(app.locale, "Playing next").into_owned(), theme::semibold(14.0), palette.text);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 clear_button(app, ui);
             });
@@ -256,7 +257,7 @@ pub(crate) fn contents(app: &mut App, ui: &mut egui::Ui, compact: bool) {
         ui.add_space(14.0);
     }
     if queue_len > queued_len {
-        theme::text(ui, "Next up", theme::semibold(14.0), palette.text);
+        theme::text(ui, tr!(app.locale, "Next up").into_owned(), theme::semibold(14.0), palette.text);
         ui.add_space(4.0);
         widgets::virtual_rows(ui, queue_len - queued_len, row_height, |ui, index| {
             queue_row(app, ui, queued_len + index, compact);
@@ -291,7 +292,7 @@ pub(crate) fn recents_contents(app: &mut App, ui: &mut egui::Ui) {
                 ui.add_space(8.0);
                 theme::icon(ui, Icon::CircleAlert, 16.0, palette.danger);
                 theme::text(ui, &err, theme::regular(13.0), palette.secondary);
-                if theme::soft_button(ui, &palette, Some(Icon::Refresh), "Retry", false).clicked() {
+                if theme::soft_button(ui, &palette, Some(Icon::Refresh), &tr!(app.locale, "Retry"), false).clicked() {
                     app.actions.push(Action::ReloadRecents);
                 }
             });
@@ -302,8 +303,8 @@ pub(crate) fn recents_contents(app: &mut App, ui: &mut egui::Ui) {
                 ui,
                 &palette,
                 Icon::Clock,
-                "No recent plays",
-                "Played songs appear here.",
+                &tr!(app.locale, "No recent plays"),
+                &tr!(app.locale, "Played songs appear here."),
             );
         } else {
             widgets::loading_row(ui, &palette);
@@ -316,7 +317,7 @@ pub(crate) fn recents_contents(app: &mut App, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             theme::icon(ui, Icon::CircleAlert, 14.0, palette.danger);
             theme::text(ui, &err, theme::regular(12.0), palette.secondary);
-            if theme::soft_button(ui, &palette, Some(Icon::Refresh), "Retry", false).clicked() {
+            if theme::soft_button(ui, &palette, Some(Icon::Refresh), &tr!(app.locale, "Retry"), false).clicked() {
                 app.actions.push(Action::LoadMoreRecents);
             }
         });
@@ -366,7 +367,7 @@ pub(crate) fn recents_contents(app: &mut App, ui: &mut egui::Ui) {
         if can_load && cursor - clip.bottom() < 900.0 {
             app.actions.push(Action::LoadMoreRecents);
         }
-        if theme::soft_button(ui, &palette, Some(Icon::Refresh), "Load more", false).clicked() {
+        if theme::soft_button(ui, &palette, Some(Icon::Refresh), &tr!(app.locale, "Load more"), false).clicked() {
             app.actions.push(Action::LoadMoreRecents);
         }
     }

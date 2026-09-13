@@ -6,6 +6,7 @@ use crate::api::models::Device;
 use crate::app::App;
 use crate::model::Action;
 use crate::theme::{self, Icon};
+use crate::tr;
 
 pub const BUTTON_RECT_ID: &str = "devices-button-rect";
 
@@ -190,7 +191,7 @@ pub fn popup(app: &mut App, ctx: &egui::Context) {
                 ui.set_width(width);
                 ui.horizontal(|ui| {
                     ui.add_space(6.0);
-                    theme::text(ui, "Connect to a device", theme::bold(16.0), palette.text);
+                    theme::text(ui, tr!(app.locale, "Connect to a device").into_owned(), theme::bold(16.0), palette.text);
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if app.devices_loading {
                             theme::spinner(ui, 16.0, palette.accent);
@@ -200,7 +201,7 @@ pub fn popup(app: &mut App, ctx: &egui::Context) {
                             15.0,
                             palette.secondary,
                             palette.text,
-                            "Refresh",
+                            &tr!(app.locale, "Refresh"),
                         )
                         .clicked()
                         {
@@ -263,7 +264,7 @@ pub fn popup(app: &mut App, ctx: &egui::Context) {
                             theme::subtle(
                                 ui,
                                 &palette,
-                                "No devices found. Open Spotify on another device, then refresh.",
+                                &tr!(app.locale, "No devices found. Open Spotify on another device, then refresh."),
                             );
                             ui.add_space(8.0);
                         }

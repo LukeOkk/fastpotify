@@ -4,6 +4,7 @@ use crate::api::models::{join_names, pick_image};
 use crate::app::App;
 use crate::model::{Action, Page};
 use crate::theme::{self, Icon};
+use crate::tr;
 
 use super::widgets;
 
@@ -11,24 +12,24 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
     let palette = app.palette;
     ui.add_space(8.0);
     let (title, empty_title, empty_body) = match page {
-        Page::Albums => ("Albums", "No saved albums", "Saved albums appear here."),
+        Page::Albums => (tr!(app.locale, "Albums").into_owned(), tr!(app.locale, "No saved albums").into_owned(), tr!(app.locale, "Saved albums appear here.").into_owned()),
         Page::Artists => (
-            "Artists",
-            "No followed artists",
-            "Followed artists appear here.",
+            tr!(app.locale, "Artists").into_owned(),
+            tr!(app.locale, "No followed artists").into_owned(),
+            tr!(app.locale, "Followed artists appear here.").into_owned(),
         ),
         Page::Podcasts => (
-            "Podcasts",
-            "No podcasts yet",
-            "Followed podcasts appear here.",
+            tr!(app.locale, "Podcasts").into_owned(),
+            tr!(app.locale, "No podcasts yet").into_owned(),
+            tr!(app.locale, "Followed podcasts appear here.").into_owned(),
         ),
         _ => (
-            "Episodes",
-            "No saved episodes",
-            "Saved episodes appear here.",
+            tr!(app.locale, "Episodes").into_owned(),
+            tr!(app.locale, "No saved episodes").into_owned(),
+            tr!(app.locale, "Saved episodes appear here.").into_owned(),
         ),
     };
-    theme::text(ui, title, theme::bold(28.0), palette.text);
+    theme::text(ui, title.clone(), theme::bold(28.0), palette.text);
     ui.add_space(14.0);
     match page {
         Page::Albums => {
@@ -78,8 +79,8 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
                 error,
                 can_load,
                 empty,
-                empty_title,
-                empty_body,
+                &empty_title,
+                &empty_body,
                 Icon::Disc,
             );
         }
@@ -95,7 +96,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
                     app,
                     pick_image(&artist.images, 300),
                     &artist.name,
-                    "Artist",
+                    &tr!(app.locale, "Artist"),
                     true,
                     true,
                 );
@@ -131,8 +132,8 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
                 error,
                 can_load,
                 empty,
-                empty_title,
-                empty_body,
+                &empty_title,
+                &empty_body,
                 Icon::Users,
             );
         }
@@ -174,8 +175,8 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
                 error,
                 can_load,
                 empty,
-                empty_title,
-                empty_body,
+                &empty_title,
+                &empty_body,
                 Icon::Mic,
             );
         }
@@ -210,8 +211,8 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
                 error,
                 can_load,
                 empty,
-                empty_title,
-                empty_body,
+                &empty_title,
+                &empty_body,
                 Icon::Bookmark,
             );
         }

@@ -8,6 +8,7 @@ use crate::api::models::{Episode, PlayableItem, pick_image};
 use crate::app::App;
 use crate::model::{Action, Loadable, Page, RowContext};
 use crate::theme::{self, Icon};
+use crate::tr;
 use crate::util;
 
 use super::collection::{Hero, hero};
@@ -33,7 +34,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                 Hero {
                     image: pick_image(&show.images, 300),
                     liked: false,
-                    kind: "Podcast",
+                    kind: &tr!(app.locale, "Podcast"),
                     title: &show.name,
                     description: None,
                     byline,
@@ -51,7 +52,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                             56.0,
                             palette.accent,
                             palette.on_accent,
-                            "Starting…",
+                            &tr!(app.locale, "Starting…"),
                         );
                     } else if theme::circle_button(
                         ui,
@@ -60,7 +61,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                         palette.accent,
                         palette.accent_hover,
                         palette.on_accent,
-                        "Play latest episode",
+                        &tr!(app.locale, "Play latest episode"),
                     )
                     .clicked()
                     {
@@ -74,10 +75,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                     (
                         Icon::CircleCheck,
                         palette.accent,
-                        "Remove from Your Library",
+                        &tr!(app.locale, "Remove from Your Library"),
                     )
                 } else {
-                    (Icon::CirclePlus, palette.secondary, "Follow podcast")
+                    (Icon::CirclePlus, palette.secondary, &tr!(app.locale, "Follow podcast"))
                 };
                 if theme::icon_button(ui, icon, 26.0, color, palette.text, tooltip).clicked() {
                     app.actions.push(Action::ToggleSaved(show.uri.clone()));
@@ -88,7 +89,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                     26.0,
                     palette.secondary,
                     palette.text,
-                    "More",
+                    &tr!(app.locale, "More"),
                 );
                 egui::Popup::menu(&more)
                     .frame(widgets::menu_frame(&palette))
@@ -96,7 +97,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
             });
             ui.add_space(16.0);
             if !show.description.is_empty() {
-                theme::section_title(ui, &palette, "About");
+                theme::section_title(ui, &palette, &tr!(app.locale, "About"));
                 ui.add_space(4.0);
                 let description = util::strip_html(&show.description);
                 let galley = crate::bidi::layout(
@@ -111,7 +112,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                 ui.add(egui::Label::new(galley));
                 ui.add_space(16.0);
             }
-            theme::section_title(ui, &palette, "All episodes");
+            theme::section_title(ui, &palette, &tr!(app.locale, "All episodes"));
             ui.add_space(6.0);
             let episodes = page.episodes.items.clone();
             let show_image = pick_image(&show.images, 64).map(str::to_string);
@@ -241,7 +242,7 @@ pub fn episode_row(
         Icon::PlayFilled
     };
     if app.play_pending(&episode.uri) {
-        theme::circle_spinner(&mut child, 32.0, palette.text, palette.window, "Starting…");
+        theme::circle_spinner(&mut child, 32.0, palette.text, palette.window, &tr!(app.locale, "Starting…"));
     } else if theme::circle_button(
         &mut child,
         icon,
@@ -253,7 +254,7 @@ pub fn episode_row(
             palette.text
         },
         palette.window,
-        "Play",
+        &tr!(app.locale, "Play"),
     )
     .clicked()
     {
@@ -299,7 +300,7 @@ pub fn episode_row(
             ui.painter().text(
                 pos2(x + 20.0, footer_y),
                 egui::Align2::LEFT_CENTER,
-                "Played",
+                &tr!(app.locale, "Played"),
                 theme::regular(12.0),
                 palette.secondary,
             );
@@ -327,7 +328,7 @@ pub fn episode_row(
         18.0,
         palette.secondary,
         palette.text,
-        "More",
+        &tr!(app.locale, "More"),
     );
     let item = PlayableItem::Episode(episode.clone());
     egui::Popup::menu(&more)

@@ -11,6 +11,7 @@ use crate::model::{
     TableRowsCache, TableSort,
 };
 use crate::theme::{self, Icon, Palette};
+use crate::tr;
 use crate::util;
 
 use super::widgets::{self, TrackRow};
@@ -139,7 +140,7 @@ pub fn actions_row(
                 Icon::PlayFilled
             };
             if app.play_pending(uri) {
-                theme::circle_spinner(ui, 56.0, palette.accent, palette.on_accent, "Starting…");
+                theme::circle_spinner(ui, 56.0, palette.accent, palette.on_accent, &tr!(app.locale, "Starting…"));
             } else if theme::circle_button(
                 ui,
                 icon,
@@ -227,7 +228,7 @@ pub fn actions_row(
                 26.0,
                 palette.secondary,
                 palette.text,
-                "More",
+                &tr!(app.locale, "More"),
             );
             egui::Popup::menu(&more)
                 .frame(widgets::menu_frame(&palette))
@@ -248,7 +249,7 @@ pub fn actions_row(
                     &palette,
                     egui::Id::new(("collection-filter", actions.name)),
                     filter,
-                    "Filter",
+                    &tr!(app.locale, "Filter"),
                     220.0,
                 );
             });
@@ -269,7 +270,7 @@ fn playlist_position_jump(
         *position = base_offset.saturating_add(1).min(total);
     }
     ui.horizontal(|ui| {
-        theme::text(ui, "Go to song", theme::medium(13.0), app.palette.secondary);
+        theme::text(ui, tr!(app.locale, "Go to song").into_owned(), theme::medium(13.0), app.palette.secondary);
         let field = ui.add(
             egui::DragValue::new(position)
                 .range(1..=total)
@@ -639,8 +640,8 @@ pub fn table(app: &mut App, ui: &mut egui::Ui, table: Table<'_>) {
             ui,
             &palette,
             Icon::Music,
-            "Nothing here yet",
-            "Added songs appear here.",
+            &tr!(app.locale, "Nothing here yet"),
+            &tr!(app.locale, "Added songs appear here."),
         );
     } else if entry.visible.is_empty()
         && !needle.is_empty()
@@ -771,11 +772,11 @@ fn items_of(
 pub fn top_songs(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
     ui.add_space(12.0);
-    theme::text(ui, "Your top songs", theme::bold(30.0), palette.text);
+    theme::text(ui, tr!(app.locale, "Your top songs").into_owned(), theme::bold(30.0), palette.text);
     ui.add_space(4.0);
     theme::text(
         ui,
-        "Your most-played tracks from the last four weeks.",
+        tr!(app.locale, "Your most-played tracks from the last four weeks.").into_owned(),
         theme::regular(13.5),
         palette.secondary,
     );
@@ -947,7 +948,7 @@ pub fn playlist(app: &mut App, ui: &mut egui::Ui, id: &str) {
                     view: view_play,
                     saved: (!owned).then(|| (playlist.uri.clone(), saved)),
                     saved_icons: (Icon::CirclePlus, Icon::CircleCheck),
-                    saved_tooltips: ("Add to Your Library", "Remove from Your Library"),
+                    saved_tooltips: (&tr!(app.locale, "Add to Your Library"), &tr!(app.locale, "Remove from Your Library")),
                     owned_playlist: owned.then_some(playlist_clone),
                     name: &playlist.name,
                 },
@@ -1063,7 +1064,7 @@ pub fn album(app: &mut App, ui: &mut egui::Ui, id: &str) {
                     view: album_view,
                     saved: Some((album.uri.clone(), saved)),
                     saved_icons: (Icon::CirclePlus, Icon::CircleCheck),
-                    saved_tooltips: ("Save to Your Library", "Remove from Your Library"),
+                    saved_tooltips: (&tr!(app.locale, "Save to Your Library"), &tr!(app.locale, "Remove from Your Library")),
                     owned_playlist: None,
                     name: &album.name,
                 },
@@ -1228,8 +1229,8 @@ pub fn liked(app: &mut App, ui: &mut egui::Ui) {
         Hero {
             image: None,
             liked: true,
-            kind: "Playlist",
-            title: "Liked Songs",
+            kind: &tr!(app.locale, "Playlist"),
+            title: &tr!(app.locale, "Liked Songs"),
             description: None,
             byline: vec![(user, None), (count_text, None)],
             round: false,
@@ -1265,7 +1266,7 @@ pub fn liked(app: &mut App, ui: &mut egui::Ui) {
             saved_icons: (Icon::Heart, Icon::HeartFilled),
             saved_tooltips: ("", ""),
             owned_playlist: None,
-            name: "Liked Songs",
+            name: &tr!(app.locale, "Liked Songs"),
         },
         Some(&mut filter),
     );
