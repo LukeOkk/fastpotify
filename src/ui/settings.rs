@@ -5,7 +5,7 @@ use egui::{Align, CornerRadius, Frame, Layout, Margin, Stroke, Vec2};
 use crate::api::models::pick_image;
 use crate::app::App;
 use crate::model::{Action, Dialog};
-use crate::settings::{ThemeChoice, AccentColor};
+use crate::settings::{AccentColor, ThemeChoice};
 use crate::theme::{self, Icon, Palette};
 
 use super::widgets;
@@ -503,16 +503,17 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 6.0;
                 for choice in AccentColor::ALL {
-                    if theme::soft_button(
+                    let mut button = theme::soft_button(
                         ui,
                         &palette,
                         None,
                         choice.label(),
                         app.settings.accent_color == choice,
-                    )
-                    .clicked()
-                        && app.settings.accent_color != choice
-                    {
+                    );
+                    if let Some(hint) = choice.hint() {
+                        button = button.on_hover_text(hint);
+                    }
+                    if button.clicked() && app.settings.accent_color != choice {
                         app.settings.accent_color = choice;
                         changed = true;
                     }
@@ -679,7 +680,11 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 "Translation server",
                 "Empty uses the official libretranslate.com, which requires the API key below.",
                 |ui| {
-                    let mut url = app.settings.lyrics_translate_api_url.clone().unwrap_or_default();
+                    let mut url = app
+                        .settings
+                        .lyrics_translate_api_url
+                        .clone()
+                        .unwrap_or_default();
                     let response = Frame::new()
                         .fill(palette.surface)
                         .corner_radius(CornerRadius::same(6))
@@ -711,7 +716,11 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 "API key",
                 "Only needed for the official libretranslate.com server.",
                 |ui| {
-                    let mut key = app.settings.lyrics_translate_api_key.clone().unwrap_or_default();
+                    let mut key = app
+                        .settings
+                        .lyrics_translate_api_key
+                        .clone()
+                        .unwrap_or_default();
                     let response = Frame::new()
                         .fill(palette.surface)
                         .corner_radius(CornerRadius::same(6))

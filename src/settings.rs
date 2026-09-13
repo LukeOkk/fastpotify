@@ -96,10 +96,17 @@ pub enum AccentColor {
     Teal,
     Yellow,
     White,
+    /// The monochrome accent for the OLED theme. It is a graphite, not
+    /// #000000, and cannot be black: `palette.accent` tints icons, top bar
+    /// labels and the lit lyric line as often as it fills play buttons,
+    /// progress bars and the mini player's level meter, so a black accent on
+    /// the OLED theme's black panels would erase the very controls it marks.
+    /// See [`Self::rgb`] for how the value is pinned.
+    Oled,
 }
 
 impl AccentColor {
-    pub const ALL: [AccentColor; 9] = [
+    pub const ALL: [AccentColor; 10] = [
         Self::Green,
         Self::Blue,
         Self::Purple,
@@ -109,6 +116,7 @@ impl AccentColor {
         Self::Teal,
         Self::Yellow,
         Self::White,
+        Self::Oled,
     ];
 
     pub fn rgb(self) -> (u8, u8, u8) {
@@ -122,6 +130,14 @@ impl AccentColor {
             Self::Teal => (0x14, 0xb8, 0xa6),
             Self::Yellow => (0xea, 0xb3, 0x08),
             Self::White => (0xf5, 0xf5, 0xf5),
+            // A graphite carrying the same faint blue cast as the theme's
+            // other greys. It clears WCAG AA (4.5:1) against every OLED
+            // surface from #000000 up to `surface_active` -- 5.37:1 at the
+            // worst of them, and more once `with_accent` brightens it by a
+            // fifth for `accent_hover` -- and stays a visible step above
+            // `dim`, the colour an inactive toggle wears, so "on" does not
+            // read as "off". `theme.rs` holds the test that pins all of it.
+            Self::Oled => (0x8b, 0x91, 0x9c),
         }
     }
 
@@ -136,6 +152,20 @@ impl AccentColor {
             Self::Teal => "Teal",
             Self::Yellow => "Yellow",
             Self::White => "White",
+            Self::Oled => "OLED",
+        }
+    }
+
+    /// What the label does not say on its own. "OLED" names a screen, not a
+    /// colour, and the colour it turns out to be is not the black someone
+    /// picking it on the OLED theme would expect.
+    pub fn hint(self) -> Option<&'static str> {
+        match self {
+            Self::Oled => Some(
+                "A graphite, not black: the accent paints icons and labels as well as \
+                 buttons, so a black one would disappear into the OLED theme's panels.",
+            ),
+            _ => None,
         }
     }
 }
@@ -227,6 +257,11 @@ pub struct Settings {
     /// The mini player's last size, in logical pixels.
     #[serde(default = "default_mini_player_size")]
     pub mini_player_size: [f32; 2],
+    /// Where the mini player's window last sat, in logical pixels. `None`
+    /// until it has been placed once, so the first open lands wherever the
+    /// window manager prefers.
+    #[serde(default)]
+    pub mini_player_pos: Option<[f32; 2]>,
     /// The mini player paints its background with the album art's dominant
     /// colour instead of the plain panel colour.
     #[serde(default = "default_mini_player_tint_background")]
@@ -332,6 +367,7 @@ impl Default for Settings {
             zoom: 1.0,
             mini_player_open: false,
             mini_player_size: default_mini_player_size(),
+            mini_player_pos: None,
             mini_player_tint_background: default_mini_player_tint_background(),
             mini_player_show_controls: default_mini_player_show_controls(),
             mini_player_split: default_mini_player_split(),
@@ -445,7 +481,20 @@ impl Settings {
 
 #[cfg(test)]
 mod tests {
-    use super::Settings;
+    use super::{AccentColor, Settings};
+
+    #[test]
+    fn the_oled_accent_is_offered_and_round_trips() {
+        assert!(AccentColor::ALL.contains(&AccentColor::Oled));
+        assert_eq!(AccentColor::Oled.label(), "OLED");
+        let settings = Settings {
+            accent_color: AccentColor::Oled,
+            ..Settings::default()
+        };
+        let json = serde_json::to_string(&settings).unwrap();
+        let restored: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.accent_color, AccentColor::Oled);
+    }
 
     #[test]
     fn older_settings_keep_the_sidebar_visible() {

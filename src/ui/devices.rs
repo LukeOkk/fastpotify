@@ -166,7 +166,10 @@ fn receiver_row(app: &mut App, ui: &mut egui::Ui, receiver: &crate::zeroconf::Re
 }
 
 pub fn popup(app: &mut App, ctx: &egui::Context) {
-    if !app.show_devices {
+    // The main window and the mini player are both on screen and both call
+    // this with the one `show_devices` flag between them. Drawing it twice
+    // would bury a 460pt mini player under a 320pt list.
+    if !app.show_devices || ctx.viewport_id() != app.devices_popup_host {
         return;
     }
     let palette = app.palette;

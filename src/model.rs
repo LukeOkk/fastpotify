@@ -97,6 +97,8 @@ pub enum Page {
     Home,
     TopSongs,
     Search,
+    Explore,
+    Category(String),
     LikedSongs,
     Albums,
     Artists,
@@ -116,6 +118,8 @@ impl Page {
             Page::Home => "home".into(),
             Page::TopSongs => "top-songs".into(),
             Page::Search => "search".into(),
+            Page::Explore => "explore".into(),
+            Page::Category(id) => format!("category:{id}"),
             Page::LikedSongs => "liked".into(),
             Page::Albums => "albums".into(),
             Page::Artists => "artists".into(),
@@ -135,6 +139,7 @@ impl Page {
             "home" => Page::Home,
             "top-songs" => Page::TopSongs,
             "search" => Page::Search,
+            "explore" => Page::Explore,
             "liked" => Page::LikedSongs,
             "albums" => Page::Albums,
             "artists" => Page::Artists,
@@ -149,6 +154,7 @@ impl Page {
                     "album" => Page::Album(id.into()),
                     "artist" => Page::Artist(id.into()),
                     "show" => Page::Show(id.into()),
+                    "category" => Page::Category(id.into()),
                     _ => return None,
                 }
             }
@@ -591,6 +597,16 @@ pub struct ShowPage {
     pub episodes: PagedList<Episode>,
 }
 
+#[derive(Default)]
+pub struct CategoryPage {
+    pub name: String,
+    pub playlists: Loadable<Vec<Playlist>>,
+    /// Spotify retired the category playlist feed in November 2024. When it
+    /// answers 404 these playlists come from a catalogue search for `name`
+    /// instead, and the page says so rather than looking mysteriously thin.
+    pub retired: bool,
+}
+
 /// A table's sort, chosen by clicking a column heading.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TableSort {
@@ -707,6 +723,12 @@ pub struct Toast {
 #[derive(Clone, Debug)]
 pub enum Action {
     Open(Page),
+    /// Opens a browse category, carrying the name the grid already knows so
+    /// the page has a heading and a search term before anything loads.
+    OpenCategory {
+        id: String,
+        name: String,
+    },
     OpenUri(String),
     /// A Spotify link from outside the app: its page opens and the window
     /// comes forward, once the account is signed in.
@@ -843,6 +865,8 @@ pub enum Action {
     /// Open or close the plain-egui playlist section under the compact bar.
     TogglePlaylistWindow,
     ToggleDevicesPopup,
+    /// Open or close the mini player's volume slider.
+    ToggleVolumePopup,
     /// Ask GitHub for the latest release and report the result to the user.
     CheckForUpdates,
     SettingsChanged,
@@ -864,6 +888,8 @@ pub enum Action {
     ClearPlayHistory,
     /// Open or close the mini player.
     ToggleMiniPlayer,
+    /// Close the mini player's window, whoever asked.
+    CloseMiniPlayer,
     /// Select a skin, or the built-in skin for `None`.
     SetSkin(Option<String>),
     /// Install and select a skin file.

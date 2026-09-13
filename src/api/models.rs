@@ -726,6 +726,29 @@ pub struct Recommendations {
     pub tracks: Vec<Track>,
 }
 
+/// One browse category: "Pop", "Podcasts", "Fresh Finds".
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+pub struct Category {
+    #[serde(default, deserialize_with = "null_default")]
+    pub id: String,
+    #[serde(default, deserialize_with = "null_default")]
+    pub name: String,
+    #[serde(default, deserialize_with = "null_default")]
+    pub icons: Vec<Image>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+pub struct Categories {
+    #[serde(default)]
+    pub categories: Page<Category>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+pub struct CategoryPlaylists {
+    #[serde(default)]
+    pub playlists: Page<Playlist>,
+}
+
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 pub struct SnapshotId {
     #[serde(default)]
@@ -864,5 +887,32 @@ mod tests {
         let playlists = results.playlists.unwrap();
         assert_eq!(playlists.items.len(), 1);
         assert_eq!(playlists.next_offset(), Some(2));
+    }
+
+    #[test]
+    fn browse_categories_survive_a_null_icon_list() {
+        let json = r#"{"categories":{"href":"https://api.spotify.com/v1/browse/categories?offset=0&limit=2","items":[{"id":"pop","name":"Pop","href":"https://api.spotify.com/v1/browse/categories/pop","icons":[{"url":"https://t.scdn.co/media/derived/pop.jpg","width":274,"height":274}]},{"id":"0JQ5DAqbMKFz6FAsUtgAab","name":"New Releases","icons":null}],"total":2,"limit":2,"offset":0,"next":"next page"}}"#;
+        let body: Categories = serde_json::from_str(json).unwrap();
+        let items = &body.categories.items;
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].id, "pop");
+        assert_eq!(items[0].name, "Pop");
+        assert_eq!(
+            pick_image(&items[0].icons, 300),
+            Some("https://t.scdn.co/media/derived/pop.jpg")
+        );
+        assert_eq!(items[1].name, "New Releases");
+        assert!(items[1].icons.is_empty());
+        assert_eq!(body.categories.next_offset(), Some(2));
+    }
+
+    #[test]
+    fn category_playlists_skip_the_nulls_spotify_pads_the_page_with() {
+        let json = r#"{"playlists":{"items":[null,{"id":"p","name":"Pop Rising","uri":"spotify:playlist:p"},null],"total":3,"limit":3,"offset":0}}"#;
+        let body: CategoryPlaylists = serde_json::from_str(json).unwrap();
+
+        assert_eq!(body.playlists.items.len(), 1);
+        assert_eq!(body.playlists.items[0].name, "Pop Rising");
     }
 }

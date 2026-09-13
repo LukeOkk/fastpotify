@@ -30,6 +30,11 @@ const DETAILS_ROW_HEIGHT: f32 = 28.0;
 /// How close to the bottom edge the pointer has to be for the revealed seek
 /// bar to take the click instead of whatever it floats over.
 const GRAB_BAND: f32 = 8.0;
+/// Where the volume slider anchors itself, written by the button that opens it.
+const VOLUME_BUTTON_RECT_ID: &str = "mini-volume-button-rect";
+/// The diameter of a macOS traffic light.
+#[cfg(target_os = "macos")]
+const CLOSE_DOT: f32 = 12.0;
 
 /// Drop priority: the first entry survives the narrowest controls side. The
 /// details row picks the list up where the main row ran out of width.
@@ -73,10 +78,10 @@ fn form(size: Vec2) -> Form {
 }
 
 pub fn show(app: &mut App, ui: &mut Ui) {
-    // The mini player is the only window on screen while it is open, so the
-    // shortcuts have to run from here too: Cmd+W is the borderless window's
-    // only close, and Cmd+Shift+M and Cmd+Shift+K are how a window this small
-    // reaches the full window and MilkDrop when no button fits.
+    // The mini player keeps its own keyboard focus, so the shortcuts have to
+    // run from here too: Cmd+W is the borderless window's only close, and
+    // Cmd+Shift+M and Cmd+Shift+K are how a window this small reaches the
+    // full window and MilkDrop when no button fits.
     super::keys::handle(app, ui.ctx());
     let palette = app.palette;
     let now = app.now_playing();
@@ -164,30 +169,44 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             }
             if !app.show_mini_player_settings {
                 super::devices::popup(app, ui.ctx());
+                volume_popup(app, ui.ctx(), window_rect, now.as_ref());
             }
             if app.show_mini_player_settings {
                 settings_overlay(app, ui, content);
             }
         });
-    // Never save the outgoing main window's size during a mode switch.
+    // A screenshot run draws the mini player inside the main window. That
+    // window's geometry is not the mini player's and must not reach disk.
+    if app.capturing() {
+        return;
+    }
+    // Both readings are already in egui points, the same unit the viewport
+    // builder takes: egui-winit multiplies the builder by the zoom factor on
+    // the way out and divides the window by it on the way back, so the round
+    // trip is exact and compensating for the zoom here would inflate the
+    // window a little more on every launch.
+    //
     // Clamp transitional full-screen readings before they can reach disk.
-    let size = ui.ctx().input(|input| input.viewport().inner_rect);
-    if !app.switch_intent
-        && let Some(rect) = size
-    {
-        // The window is created from this in logical points, before the zoom
-        // factor is applied, while the viewport reports points after it. Saving
-        // the raw reading shrinks the window by the zoom on every launch until
-        // it reaches the floor below.
-        let zoom = ui.ctx().zoom_factor();
+    if let Some(rect) = ui.ctx().input(|input| input.viewport().inner_rect) {
         let size = [
-            (rect.width() * zoom).clamp(240.0, 1200.0),
-            (rect.height() * zoom).clamp(56.0, 460.0),
+            rect.width().clamp(240.0, 1200.0),
+            rect.height().clamp(56.0, 460.0),
         ];
         if (app.settings.mini_player_size[0] - size[0]).abs() > 1.0
             || (app.settings.mini_player_size[1] - size[1]).abs() > 1.0
         {
             app.settings.mini_player_size = size;
+            app.actions.push(Action::SettingsChanged);
+        }
+    }
+    if let Some(rect) = ui.ctx().input(|input| input.viewport().outer_rect) {
+        let pos = [rect.min.x, rect.min.y];
+        let moved = app
+            .settings
+            .mini_player_pos
+            .is_none_or(|saved| (saved[0] - pos[0]).abs() > 1.0 || (saved[1] - pos[1]).abs() > 1.0);
+        if moved {
+            app.settings.mini_player_pos = Some(pos);
             app.actions.push(Action::SettingsChanged);
         }
     }
@@ -265,6 +284,16 @@ fn stacked(app: &mut App, ui: &mut Ui, now: Option<&NowPlaying>, rect: Rect) {
 }
 
 fn top_strip(app: &mut App, ui: &mut Ui, rect: Rect) {
+    // Before the drag handle, or the handle would swallow its clicks.
+    #[cfg(target_os = "macos")]
+    close_dot(
+        app,
+        ui,
+        pos2(
+            rect.left() + CLOSE_DOT / 2.0 + 1.0,
+            rect.top() + CLOSE_DOT / 2.0 + 1.0,
+        ),
+    );
     let handle = Rect::from_center_size(rect.center(), vec2((rect.width() - 56.0).max(0.0), 24.0));
     super::titlebar_drag(ui, handle);
     drag_dots(
@@ -285,6 +314,35 @@ fn top_strip(app: &mut App, ui: &mut Ui, rect: Rect) {
     .clicked()
     {
         app.show_mini_player_settings = !app.show_mini_player_settings;
+    }
+}
+
+/// macOS puts a window's close control in its top-left corner. This one is
+/// borderless, so it draws its own traffic light rather than going without.
+#[cfg(target_os = "macos")]
+fn close_dot(app: &mut App, ui: &mut Ui, center: egui::Pos2) {
+    let hit = Rect::from_center_size(center, Vec2::splat(CLOSE_DOT + 4.0));
+    let response = ui
+        .interact(hit, ui.id().with("mini-close"), Sense::click())
+        .on_hover_text("Close the mini player");
+    let hovered = response.hovered();
+    let fill = if hovered {
+        Color32::from_rgb(255, 95, 87)
+    } else {
+        Color32::from_rgb(226, 86, 79)
+    };
+    ui.painter().circle_filled(center, CLOSE_DOT / 2.0, fill);
+    if hovered {
+        // The glyph the platform reveals when the pointer is over the lights.
+        let arm = 2.6;
+        let stroke = egui::Stroke::new(1.2, Color32::from_rgb(115, 22, 16));
+        ui.painter()
+            .line_segment([center + vec2(-arm, -arm), center + vec2(arm, arm)], stroke);
+        ui.painter()
+            .line_segment([center + vec2(arm, -arm), center + vec2(-arm, arm)], stroke);
+    }
+    if response.clicked() {
+        app.actions.push(Action::CloseMiniPlayer);
     }
 }
 
@@ -387,7 +445,22 @@ fn single_row(app: &mut App, ui: &mut Ui, now: Option<&NowPlaying>, rect: Rect, 
     } else {
         bar.width()
     };
-    let dots = Rect::from_min_size(bar.min, vec2(16.0, bar.height()));
+    // macOS keeps the close control in the corner, so the grip starts below it.
+    #[cfg(target_os = "macos")]
+    let dots_top = bar.top() + CLOSE_DOT + 2.0;
+    #[cfg(not(target_os = "macos"))]
+    let dots_top = bar.top();
+    // A high zoom factor can leave less height than the dot takes.
+    let dots = Rect::from_min_max(
+        pos2(bar.left(), dots_top.min(bar.bottom())),
+        pos2(bar.left() + 16.0, bar.bottom()),
+    );
+    #[cfg(target_os = "macos")]
+    close_dot(
+        app,
+        ui,
+        pos2(bar.left() + CLOSE_DOT / 2.0, bar.top() + CLOSE_DOT / 2.0),
+    );
     super::titlebar_drag(ui, dots);
     drag_dots(ui, dots, &app.palette);
     // Right-clicking the drag handle keeps settings reachable without taking control space.
@@ -682,12 +755,12 @@ fn control(app: &mut App, ui: &mut Ui, now: Option<&NowPlaying>, control: Contro
             )
         }
         Control::Volume => {
-            let (icon, muted) = volume_icon(app, now);
+            let (icon, _) = volume_icon(app, now);
             (
                 icon,
-                false,
-                if muted { "Unmute" } else { "Mute" },
-                Action::ToggleMute,
+                app.show_volume_popup,
+                "Volume",
+                Action::ToggleVolumePopup,
                 true,
             )
         }
@@ -759,7 +832,28 @@ fn control(app: &mut App, ui: &mut Ui, now: Option<&NowPlaying>, control: Contro
         ui.ctx().data_mut(|data| {
             data.insert_temp(egui::Id::new(super::devices::BUTTON_RECT_ID), response.rect)
         });
+        if response.clicked() {
+            // Both windows can be on screen and they share one popup flag;
+            // the list belongs to whichever window was asked for it.
+            app.devices_popup_host = ui.ctx().viewport_id();
+        }
     }
+    let response = if control == Control::Volume {
+        ui.ctx()
+            .data_mut(|data| data.insert_temp(egui::Id::new(VOLUME_BUTTON_RECT_ID), response.rect));
+        // The slider this button now opens took the place of the mute it used
+        // to be, so mute keeps a one-click way in of its own.
+        if response.secondary_clicked() {
+            app.actions.push(Action::ToggleMute);
+        }
+        response.on_hover_text(if volume_icon(app, now).1 {
+            "Right-click to unmute"
+        } else {
+            "Right-click to mute"
+        })
+    } else {
+        response
+    };
     if response
         .on_disabled_hover_text(if control == Control::Like {
             "Only a playing song can be saved to Liked Songs"
@@ -795,6 +889,104 @@ fn add_to_queue(app: &mut App, ui: &mut Ui, now: Option<&NowPlaying>) {
             uri: now.uri.clone(),
             label: now.title.clone(),
         });
+    }
+}
+
+/// The volume slider the controls row has no width to hold inline. It floats
+/// over the rows below the button, the way the devices list already does.
+fn volume_popup(app: &mut App, ctx: &egui::Context, screen: Rect, now: Option<&NowPlaying>) {
+    if !app.show_volume_popup {
+        return;
+    }
+    let palette = app.palette;
+    let button = ctx
+        .data(|data| data.get_temp::<Rect>(egui::Id::new(VOLUME_BUTTON_RECT_ID)))
+        .unwrap_or_else(|| Rect::from_min_size(pos2(8.0, 8.0), Vec2::ZERO));
+    let width = 168.0;
+    let volume = now
+        .map(|now| now.volume_percent)
+        .unwrap_or_else(|| crate::app::volume_to_percent(app.local.volume));
+    let shown = app
+        .volume_preview
+        .map_or(volume, |fraction| (fraction * 100.0).round() as u8);
+    // egui's own constraint re-centres the area rather than nudging it, which
+    // unpins it from the button, so keep it inside the window by hand: slide
+    // along x, and flip above the button when there is no room below.
+    let height = 40.0;
+    let below = button.bottom() + 4.0;
+    let position = pos2(
+        (button.center().x - width / 2.0).clamp(
+            screen.left() + 4.0,
+            (screen.right() - width - 4.0).max(screen.left() + 4.0),
+        ),
+        if below + height <= screen.bottom() {
+            below
+        } else {
+            (button.top() - height - 4.0).max(screen.top() + 4.0)
+        },
+    );
+    let area = egui::Area::new(egui::Id::new("mini-volume-popup"))
+        .order(egui::Order::Foreground)
+        .constrain(false)
+        .fixed_pos(position)
+        .show(ctx, |ui| {
+            widgets::menu_frame(&palette).show(ui, |ui| {
+                ui.set_width(width);
+                ui.horizontal(|ui| {
+                    let (icon, muted) = volume_icon(app, now);
+                    if theme::icon_button(
+                        ui,
+                        icon,
+                        14.0,
+                        palette.secondary,
+                        palette.text,
+                        if muted { "Unmute" } else { "Mute" },
+                    )
+                    .clicked()
+                    {
+                        app.actions.push(Action::ToggleMute);
+                    }
+                    // Local volume is cheap to apply continuously; a remote
+                    // device only hears about it on release. The same split
+                    // `player_bar.rs` makes for its own slider.
+                    match widgets::thin_slider(
+                        ui,
+                        &palette,
+                        egui::Id::new("mini-volume-slider"),
+                        "Volume (%)",
+                        f32::from(shown) / 100.0,
+                        ui.available_width(),
+                        Some(0.05),
+                    ) {
+                        SliderEvent::Dragging(value) => {
+                            app.volume_preview = Some(value);
+                            if now.is_none_or(|now| now.local) {
+                                app.actions
+                                    .push(Action::PreviewVolume((value * 100.0).round() as u8));
+                            }
+                        }
+                        SliderEvent::Committed(value) => {
+                            app.volume_preview = None;
+                            app.actions
+                                .push(Action::SetVolume((value * 100.0).round() as u8));
+                        }
+                        SliderEvent::None => {}
+                    }
+                });
+            });
+        })
+        .response;
+    // Dismiss on a click outside, but not on the button itself: that already
+    // toggles, and closing here too would reopen it on the same click.
+    let dismissed = ctx.input(|input| {
+        input.key_pressed(egui::Key::Escape)
+            || (input.pointer.any_click()
+                && input.pointer.interact_pos().is_some_and(|pos| {
+                    !area.rect.contains(pos) && !button.contains(pos)
+                }))
+    });
+    if dismissed {
+        app.show_volume_popup = false;
     }
 }
 
@@ -908,8 +1100,14 @@ fn level_meter(app: &mut App, ui: &mut Ui, now: Option<&NowPlaying>, rect: Rect)
         .chain(&state.peaks)
         .any(|value| *value > 0.1);
     ui.ctx().data_mut(|data| data.insert_temp(id, state));
+    // The mini player is an immediate child viewport, so eframe can only
+    // repaint it by repainting the main window with it. A meter nobody can
+    // see is not worth redrawing the whole app thirty times a second for.
+    let hidden = ui
+        .ctx()
+        .input(|input| input.viewport().occluded.unwrap_or(false));
     // egui subtracts a predicted frame; two frames avoid a busy loop with vsync off.
-    if moving || smoothing {
+    if (moving || smoothing) && !hidden {
         ui.ctx()
             .request_repaint_after(std::time::Duration::from_micros(16_667) * 2);
     }
@@ -1847,23 +2045,24 @@ mod tests {
         app.backend.shutdown();
     }
 
-    /// The window is created from the saved size before the zoom factor is
-    /// applied, so the size has to be saved in the same unit. Saving the raw
-    /// viewport reading shrank the window on every launch.
+    /// The viewport builder takes the same points the viewport reports back,
+    /// whatever the zoom factor, so the saved size has to be the reading
+    /// itself. Scaling it by the zoom grew the window on every launch until
+    /// it hit the ceiling below, and shrank it to the floor under 1.0.
     #[test]
     fn the_saved_size_survives_a_zoom_factor_across_launches() {
-        let (ctx, mut app) = test_app("zoom-size");
-        let size = vec2(460.0, 96.0);
-        ctx.set_zoom_factor(1.25);
-        sized_frame(&ctx, &mut app, size);
-        sized_frame(&ctx, &mut app, size);
-        // The viewport reports points after the zoom; the launch multiplies by
-        // it again, so what lands in settings has to be the pre-zoom size.
-        assert_eq!(app.settings.mini_player_size, [575.0, 120.0]);
-        let stable = app.settings.mini_player_size;
-        sized_frame(&ctx, &mut app, vec2(stable[0] / 1.25, stable[1] / 1.25));
-        assert_eq!(app.settings.mini_player_size, stable);
-        app.backend.shutdown();
+        for zoom in [0.8, 1.0, 1.25] {
+            let (ctx, mut app) = test_app("zoom-size");
+            let size = vec2(460.0, 96.0);
+            ctx.set_zoom_factor(zoom);
+            sized_frame(&ctx, &mut app, size);
+            assert_eq!(app.settings.mini_player_size, [size.x, size.y]);
+            // What was saved is what the next launch asks for, so a window
+            // that opens at that size must leave the setting alone.
+            sized_frame(&ctx, &mut app, size);
+            assert_eq!(app.settings.mini_player_size, [size.x, size.y]);
+            app.backend.shutdown();
+        }
     }
 
     /// The mini player is the only window on screen while it is open, so the
@@ -1971,6 +2170,76 @@ mod tests {
             .expect("meter state");
         assert_eq!(state.heights, [0.0; vis::BARS]);
         assert_eq!(state.peaks, [0.0; vis::BARS]);
+        app.backend.shutdown();
+    }
+
+    #[test]
+    fn the_volume_button_opens_a_slider_that_floats_over_the_rows_below() {
+        let (ctx, mut app) = test_app("volume-popup");
+        let size = vec2(900.0, 120.0);
+        let tree = frame(&ctx, &mut app, size, Vec::new());
+        assert!(
+            !tree
+                .nodes
+                .iter()
+                .any(|(_, node)| node.label() == Some("Volume (%)")),
+            "the slider must stay closed until the button is pressed"
+        );
+
+        let button = node(&tree, "Volume", Role::Button);
+        frame(
+            &ctx,
+            &mut app,
+            size,
+            vec![event(button, AccessibleAction::Click, None)],
+        );
+        assert!(
+            app.actions
+                .iter()
+                .any(|action| matches!(action, Action::ToggleVolumePopup)),
+            "pressing the volume button must ask to open the slider, got {:?}",
+            app.actions
+        );
+
+        app.actions.clear();
+        app.show_volume_popup = true;
+        let tree = frame(&ctx, &mut app, size, Vec::new());
+        let slider = tree
+            .nodes
+            .iter()
+            .find(|(_, node)| node.label() == Some("Volume (%)"))
+            .expect("the volume slider is rendered while the popup is open");
+        // It has to sit over the rows below the button, not push them aside.
+        let bounds = slider.1.bounds().expect("slider bounds");
+        let anchor = ctx
+            .data(|data| data.get_temp::<Rect>(egui::Id::new(VOLUME_BUTTON_RECT_ID)))
+            .expect("the button records where the slider anchors");
+        let area = ctx
+            .memory(|memory| memory.area_rect(egui::Id::new("mini-volume-popup")))
+            .expect("the popup area is laid out");
+        assert!(
+            area.bottom() <= size.y && area.right() <= size.x && area.left() >= 0.0,
+            "the popup at {area:?} must stay inside the {size:?} window"
+        );
+        assert!(
+            bounds.y0 >= f64::from(anchor.bottom()),
+            "slider at {bounds:?} should hang below the button at {anchor:?}"
+        );
+
+        // A window too short to hold the slider below the button has to flip it
+        // above rather than hang it off the bottom edge.
+        for short in [vec2(900.0, 72.0), vec2(320.0, 96.0)] {
+            frame(&ctx, &mut app, short, Vec::new());
+            if let Some(area) =
+                ctx.memory(|memory| memory.area_rect(egui::Id::new("mini-volume-popup")))
+            {
+                assert!(
+                    area.bottom() <= short.y && area.right() <= short.x && area.left() >= 0.0,
+                    "the popup at {area:?} must stay inside the {short:?} window"
+                );
+            }
+        }
+
         app.backend.shutdown();
     }
 }

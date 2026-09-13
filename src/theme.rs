@@ -110,18 +110,14 @@ impl Palette {
     pub fn with_accent(mut self, accent: crate::settings::AccentColor) -> Self {
         let (r, g, b) = accent.rgb();
         self.accent = Color32::from_rgb(r, g, b);
-        
+
         // Calculate accent_hover: 20% brighter, clamped to 255
         let brighten = |v: u8| {
             let v = v as u16;
             ((v + v * 20 / 100).min(255)) as u8
         };
-        self.accent_hover = Color32::from_rgb(
-            brighten(r),
-            brighten(g),
-            brighten(b),
-        );
-        
+        self.accent_hover = Color32::from_rgb(brighten(r), brighten(g), brighten(b));
+
         // Calculate on_accent: white if accent is dark, almost-black if accent is bright
         // Using perceived luminance: 0.299*R + 0.587*G + 0.114*B
         let luminance = (0.299 * r as f32 + 0.587 * g as f32 + 0.114 * b as f32) / 255.0;
@@ -132,7 +128,7 @@ impl Palette {
             // Dark accent, use light text
             Color32::from_rgb(0xff, 0xff, 0xff)
         };
-        
+
         self
     }
 }
@@ -924,6 +920,56 @@ pub fn subtle(ui: &mut egui::Ui, palette: &Palette, label: &str) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// WCAG 2.1 relative luminance.
+    fn luminance(color: Color32) -> f32 {
+        let channel = |value: u8| {
+            let value = value as f32 / 255.0;
+            if value <= 0.04045 {
+                value / 12.92
+            } else {
+                ((value + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * channel(color.r()) + 0.7152 * channel(color.g()) + 0.0722 * channel(color.b())
+    }
+
+    /// WCAG 2.1 contrast ratio, 1.0 for identical colours and 21.0 for
+    /// black against white.
+    fn contrast(a: Color32, b: Color32) -> f32 {
+        let (a, b) = (luminance(a), luminance(b));
+        (a.max(b) + 0.05) / (a.min(b) + 0.05)
+    }
+
+    #[test]
+    fn the_oled_accent_stays_legible_on_the_oled_theme() {
+        let palette = Palette::oled().with_accent(crate::settings::AccentColor::Oled);
+        // The accent paints 12.5px labels in the top bar, not just fills, so
+        // the bar is AA text contrast rather than the 3:1 one for controls.
+        for (name, surface) in [
+            ("window", palette.window),
+            ("panel", palette.panel),
+            ("surface", palette.surface),
+            ("surface_hover", palette.surface_hover),
+            ("surface_active", palette.surface_active),
+        ] {
+            let ratio = contrast(palette.accent, surface);
+            assert!(ratio >= 4.5, "accent on {name} is only {ratio:.2}:1");
+            let ratio = contrast(palette.accent_hover, surface);
+            assert!(ratio >= 4.5, "accent hover on {name} is only {ratio:.2}:1");
+        }
+        // The play triangle sitting on an accent-filled disc.
+        let ratio = contrast(palette.accent, palette.on_accent);
+        assert!(ratio >= 4.5, "on_accent over accent is only {ratio:.2}:1");
+        // Shuffle, repeat and the liked heart wear `accent` when on and `dim`
+        // when off. A grey accent has no hue to carry that difference, so the
+        // step has to be in brightness or "on" reads as "off".
+        let ratio = contrast(palette.accent, palette.dim);
+        assert!(
+            luminance(palette.accent) > luminance(palette.dim) && ratio >= 1.4,
+            "accent against dim is only {ratio:.2}:1"
+        );
+    }
 
     #[test]
     fn fonts_install_and_layout_emojis() {

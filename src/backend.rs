@@ -96,6 +96,14 @@ pub enum ApiRequest {
         term: String,
         generation: u64,
     },
+    Categories {
+        generation: u64,
+    },
+    CategoryPlaylists {
+        id: String,
+        /// The fallback search term when the category feed is gone.
+        name: String,
+    },
     MyPlaylists {
         offset: u32,
     },
@@ -252,6 +260,7 @@ impl ApiRequest {
                 | Self::TopArtists { .. }
                 | Self::Recommendations { .. }
                 | Self::Discover { .. }
+                | Self::Categories { .. }
                 | Self::MyPlaylists { .. }
                 | Self::PlaylistSample { .. }
                 | Self::Contains { .. }
@@ -295,6 +304,16 @@ pub enum ApiResponse {
         term: String,
         generation: u64,
         result: ApiResult<Vec<Playlist>>,
+    },
+    Categories {
+        generation: u64,
+        result: ApiResult<Vec<Category>>,
+    },
+    CategoryPlaylists {
+        id: String,
+        result: ApiResult<Vec<Playlist>>,
+        /// The category feed answered 404 and these came from a search.
+        retired: bool,
     },
     MyPlaylists {
         offset: u32,
@@ -2230,7 +2249,11 @@ fn operation_for(api: &ApiGateway, request: &ApiRequest) -> Operation {
         }
         ApiRequest::MyPlaylists { .. } => Operation::PlaylistLibrary,
         ApiRequest::CreatePlaylist { .. } => Operation::PlaylistCreation,
-        ApiRequest::Discover { .. } | ApiRequest::Search { .. } => Operation::PlaylistSearch,
+        // A retired category feed falls back to a search, so both share the
+        // quota that search runs on.
+        ApiRequest::Discover { .. }
+        | ApiRequest::Search { .. }
+        | ApiRequest::CategoryPlaylists { .. } => Operation::PlaylistSearch,
         ApiRequest::Playlist { id, .. } => Operation::PlaylistMetadata(api.playlist_access(id)),
         ApiRequest::PlaylistItems { id, .. }
         | ApiRequest::PlaylistSample { id, .. }
@@ -2248,7 +2271,8 @@ fn operation_for(api: &ApiGateway, request: &ApiRequest) -> Operation {
         ApiRequest::Recommendations { .. }
         | ApiRequest::ArtistTopTracks { .. }
         | ApiRequest::RelatedArtists { .. } => Operation::UnsupportedDevelopmentMode,
-        ApiRequest::Artist { .. }
+        ApiRequest::Categories { .. }
+        | ApiRequest::Artist { .. }
         | ApiRequest::ArtistAlbums { .. }
         | ApiRequest::Album { .. }
         | ApiRequest::AlbumTracks { .. }
@@ -2262,6 +2286,10 @@ fn operation_for(api: &ApiGateway, request: &ApiRequest) -> Operation {
 fn observe_playlists(api: &ApiGateway, response: &ApiResponse) {
     match response {
         ApiResponse::Discover {
+            result: Ok(playlists),
+            ..
+        }
+        | ApiResponse::CategoryPlaylists {
             result: Ok(playlists),
             ..
         } => api.observe_playlists(playlists),
@@ -2383,6 +2411,32 @@ async fn handle(api: &ApiGateway, request: ApiRequest) -> (ApiResponse, Option<A
                 term,
                 generation,
                 result,
+            }
+        }
+        ApiRequest::Categories { generation } => ApiResponse::Categories {
+            generation,
+            result: routed!(categories(0, 50)).map(|page| page.items),
+        },
+        ApiRequest::CategoryPlaylists { id, name } => {
+            let direct = routed!(category_playlists(&id, 50)).map(|page| page.items);
+            // Spotify retired the category feed in November 2024, so an app
+            // registered after that date gets 404 forever. Search is the one
+            // catalogue call every registration can still make, so the page
+            // shows those results and admits where they came from.
+            let retired = direct
+                .as_ref()
+                .err()
+                .is_some_and(|error| error.status() == Some(404));
+            let result = if retired {
+                routed!(search(&name, &["playlist"]))
+                    .map(|results| results.playlists.map(|page| page.items).unwrap_or_default())
+            } else {
+                direct
+            };
+            ApiResponse::CategoryPlaylists {
+                id,
+                result,
+                retired,
             }
         }
         ApiRequest::MyPlaylists { offset } => ApiResponse::MyPlaylists {

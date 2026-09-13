@@ -988,6 +988,26 @@ impl ApiClient {
         .await
     }
 
+    pub async fn categories(&self, offset: u32, limit: u32) -> Result<Page<Category>> {
+        self.get::<Categories>(
+            "/browse/categories",
+            &[("limit", limit.to_string()), ("offset", offset.to_string())],
+        )
+        .await
+        .map(|body| body.categories)
+    }
+
+    /// Spotify retired this endpoint in November 2024: registrations made
+    /// after that date get 404 forever, so every caller needs a fallback.
+    pub async fn category_playlists(&self, id: &str, limit: u32) -> Result<Page<Playlist>> {
+        self.get::<CategoryPlaylists>(
+            &format!("/browse/categories/{id}/playlists"),
+            &[("limit", limit.to_string())],
+        )
+        .await
+        .map(|body| body.playlists)
+    }
+
     pub async fn artist(&self, id: &str) -> Result<Artist> {
         self.get(&format!("/artists/{id}"), &[]).await
     }

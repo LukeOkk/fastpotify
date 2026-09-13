@@ -532,6 +532,7 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
         data.insert_temp(egui::Id::new(super::devices::BUTTON_RECT_ID), devices.rect)
     });
     if devices.clicked() {
+        app.devices_popup_host = ui.ctx().viewport_id();
         app.actions.push(Action::ToggleDevicesPopup);
     }
     let queue_open = app.show_queue_panel || matches!(app.page(), Page::Queue);

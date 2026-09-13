@@ -518,6 +518,17 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
     {
         app.actions.push(Action::FocusSearch);
     }
+    if nav_row(
+        ui,
+        &palette,
+        Icon::Compass,
+        "Explore",
+        page == Page::Explore,
+    )
+    .clicked()
+    {
+        app.actions.push(Action::Open(Page::Explore));
+    }
     ui.add_space(10.0);
     ui.painter().hline(
         ui.max_rect().x_range().shrink(4.0),

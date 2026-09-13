@@ -149,8 +149,7 @@ fn band_label(hz: f32) -> String {
 
 /// A small +12/0/-12 dB reference column, level with the sliders beside it.
 fn db_scale(ui: &mut egui::Ui, palette: &Palette) {
-    let (rect, _) =
-        ui.allocate_exact_size(egui::vec2(28.0, SLIDER_HEIGHT), egui::Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(28.0, SLIDER_HEIGHT), egui::Sense::hover());
     if !ui.is_rect_visible(rect) {
         return;
     }

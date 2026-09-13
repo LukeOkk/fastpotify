@@ -8,7 +8,7 @@ use egui::Color32;
 
 use crate::api::PlayRequest;
 use crate::api::models::{
-    ArtistRef, Device, PlayableItem, PlaybackState, Playlist, PlaylistItem, Queue, Track,
+    ArtistRef, Category, Device, PlayableItem, PlaybackState, Playlist, PlaylistItem, Queue, Track,
     TrackCount, User, UserRef, pick_image,
 };
 use crate::backend::{
@@ -182,13 +182,24 @@ pub struct App {
     pub hide_intent: bool,
     /// The outer loop should recreate the hidden window.
     pub wants_show: bool,
-    /// The window should close and reopen at once as the other kind: the
-    /// big window or the mini player.
-    pub switch_intent: bool,
     /// The mini player is suspended while sign-in needs the main window.
     /// In-memory only: a transient sign-in failure must never change the
     /// saved `Settings::mini_player_open` preference.
     pub mini_player_suspended: bool,
+    /// Whether the mini player's own window already exists. The size and
+    /// position only ride in its builder on the frame that creates it, or
+    /// every frame would undo the user's dragging and resizing.
+    mini_viewport_open: bool,
+    /// The taskbar flag the mini player's window was built with. Changing it
+    /// makes egui rebuild the window, which restores the builder's geometry,
+    /// so the current geometry has to ride along on that frame.
+    mini_viewport_taskbar: Option<bool>,
+    /// This process exists only to take a screenshot. A capture can read the
+    /// root window and nothing else, so the mini player is drawn there, and
+    /// the throwaway window neither restores nor records the real one's
+    /// geometry.
+    #[cfg(feature = "demo")]
+    pub demo_capture: bool,
     /// Commands from control clients (a second `fastpotify <verb>` launch,
     /// a Raycast script), on the platforms where they do not arrive through
     /// MPRIS. Drained every frame.
@@ -278,6 +289,9 @@ pub struct App {
     pub album_pages: HashMap<String, AlbumPage>,
     pub artist_pages: HashMap<String, ArtistPage>,
     pub show_pages: HashMap<String, ShowPage>,
+    pub explore: Loadable<Vec<Category>>,
+    explore_generation: u64,
+    pub category_pages: HashMap<String, CategoryPage>,
     pub track_cache: HashMap<String, Track>,
     track_requests: HashSet<String>,
     /// Built table rows, keyed by page. Capped; dropped on reset and eviction.
@@ -328,6 +342,11 @@ pub struct App {
     /// language change or track change asks again.
     pub lyrics_translated_for: Option<(String, String)>,
     pub show_devices: bool,
+    /// Which window the Connect list belongs to. Both windows draw from the
+    /// one flag above, so without an owner the list appears in both at once.
+    pub devices_popup_host: egui::ViewportId,
+    /// The mini player's volume slider, which has no room to sit inline.
+    pub show_volume_popup: bool,
     pub toasts: Vec<Toast>,
     pub actions: Vec<Action>,
     volume_before_mute: Option<u8>,
@@ -538,8 +557,11 @@ impl App {
             window_hidden: false,
             hide_intent: false,
             wants_show: false,
-            switch_intent: false,
             mini_player_suspended: false,
+            mini_viewport_open: false,
+            mini_viewport_taskbar: None,
+            #[cfg(feature = "demo")]
+            demo_capture: false,
             control_commands: None,
             control_now_playing: None,
             control_devices: None,
@@ -607,6 +629,9 @@ impl App {
             album_pages: HashMap::new(),
             artist_pages: HashMap::new(),
             show_pages: HashMap::new(),
+            explore: Loadable::NotLoaded,
+            explore_generation: 0,
+            category_pages: HashMap::new(),
             track_cache: HashMap::new(),
             track_requests: HashSet::new(),
             table_rows: HashMap::new(),
@@ -634,6 +659,8 @@ impl App {
             lyrics_translated: Loadable::NotLoaded,
             lyrics_translated_for: None,
             show_devices: false,
+            devices_popup_host: egui::ViewportId::ROOT,
+            show_volume_popup: false,
             toasts: Vec::new(),
             actions: Vec::new(),
             volume_before_mute: None,
@@ -733,23 +760,23 @@ impl App {
         self.window_hidden = false;
         self.hide_intent = false;
         self.wants_show = false;
-        self.switch_intent = false;
+        // A new main window leaves the mini player's own window behind, so
+        // the next frame has to build it from scratch.
+        self.mini_viewport_open = false;
+        self.mini_viewport_taskbar = None;
         if let Some(tray) = &mut self.tray {
             tray.attach();
         }
-        if self.settings.mini_player_open && !self.mini_player_suspended {
-            // The mini player sizes itself; the big window's geometry
-            // waits here for its return. eframe may have restored the big
-            // window's fullscreen/maximized state before creating this one.
-            ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
-            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(false));
-            // Re-assert the on-top level over the
-            // first frames, once the window is mapped, because the level set
-            // at creation does not stick on X11.
-            if self.settings.winamp_on_top {
-                self.winamp_level_reassert = 3;
-            }
-            return;
+        // Re-assert the on-top level over the first frames, once the window
+        // is mapped, because the level set at creation does not stick on X11.
+        if self.mini_player_visible() && self.settings.winamp_on_top {
+            self.winamp_level_reassert = 3;
+        }
+        // A capture window is pinned to the size it was asked for; the real
+        // window's remembered geometry would resize it out from under the shot.
+        if self.capturing() {
+            self.session_window_size = None;
+            self.session_window_pos = None;
         }
         if let Some(size) = self.session_window_size.take() {
             // Clamp to a sane range so a stale session never creates an
@@ -792,6 +819,24 @@ impl App {
     /// quitting.
     pub fn hides_to_tray(&self) -> bool {
         self.tray.is_some() && self.settings.keep_playing_in_background
+    }
+
+    /// Whether the mini player's window should be on screen beside the main
+    /// one. The saved preference alone is not enough: sign-in suspends it.
+    pub fn mini_player_visible(&self) -> bool {
+        self.settings.mini_player_open && !self.mini_player_suspended
+    }
+
+    /// Whether this frame is a throwaway capture window's.
+    pub fn capturing(&self) -> bool {
+        #[cfg(feature = "demo")]
+        {
+            self.demo_capture
+        }
+        #[cfg(not(feature = "demo"))]
+        {
+            false
+        }
     }
 
     // ---- derived state -----------------------------------------------------
@@ -1503,6 +1548,8 @@ impl App {
         self.album_pages.clear();
         self.artist_pages.clear();
         self.show_pages.clear();
+        self.explore = Loadable::NotLoaded;
+        self.category_pages.clear();
         self.saved.clear();
         self.saved_pending.clear();
         self.track_recordings.clear();
@@ -2105,13 +2152,15 @@ impl App {
             })));
     }
 
-    /// Pushes the mini player's always-on-top level to the live window.
+    /// Pushes the mini player's always-on-top level to its live window.
     fn push_winamp_level(&self, ctx: &egui::Context) {
-        if let Some(level) = winamp_on_top_level(
-            self.settings.mini_player_open && !self.mini_player_suspended,
-            self.settings.winamp_on_top,
-        ) {
-            ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(level));
+        if let Some(level) =
+            winamp_on_top_level(self.mini_player_visible(), self.settings.winamp_on_top)
+        {
+            ctx.send_viewport_cmd_to(
+                mini_viewport_id(),
+                egui::ViewportCommand::WindowLevel(level),
+            );
         }
     }
 
@@ -2752,6 +2801,36 @@ impl App {
             Page::Home => self.load_home(false),
             Page::TopSongs => self.load_top_songs(false),
             Page::Search => {}
+            Page::Explore => {
+                if self.explore.needs_load() {
+                    self.explore = Loadable::Loading;
+                    self.explore_generation = self.explore_generation.wrapping_add(1);
+                    self.backend.api(ApiRequest::Categories {
+                        generation: self.explore_generation,
+                    });
+                }
+            }
+            Page::Category(id) => {
+                // A restored or deep-linked category arrives without a name;
+                // borrow it from the grid when that has already loaded.
+                let known = self
+                    .explore
+                    .get()
+                    .and_then(|categories| categories.iter().find(|category| category.id == id))
+                    .map(|category| category.name.clone());
+                let page = self.category_pages.entry(id.clone()).or_default();
+                if page.name.is_empty() {
+                    page.name = known.unwrap_or_else(|| id.clone());
+                }
+                if page.playlists.needs_load() {
+                    page.playlists = Loadable::Loading;
+                    let name = page.name.clone();
+                    self.backend.api(ApiRequest::CategoryPlaylists {
+                        id: id.clone(),
+                        name,
+                    });
+                }
+            }
             Page::LikedSongs => self.ensure_liked_songs(),
             Page::Albums => {
                 if !self.library.albums.loaded_once {
@@ -3118,6 +3197,14 @@ impl App {
             Page::LikedSongs => {
                 self.refresh_liked_songs();
                 return;
+            }
+            Page::Explore => self.explore = Loadable::NotLoaded,
+            Page::Category(id) => {
+                // Keep the name; only the playlists are worth fetching again.
+                if let Some(page) = self.category_pages.get_mut(id) {
+                    page.playlists = Loadable::NotLoaded;
+                    page.retired = false;
+                }
             }
             Page::Albums => self.library.albums.reset(),
             Page::Artists => self.library.artists.reset(),
@@ -3834,6 +3921,21 @@ impl App {
                     self.request_contains(uris);
                 }
                 self.home.recommendations.refresh(result);
+            }
+            ApiResponse::Categories { generation, result } => {
+                if generation == self.explore_generation {
+                    self.explore.refresh(result);
+                }
+            }
+            ApiResponse::CategoryPlaylists {
+                id,
+                result,
+                retired,
+            } => {
+                if let Some(page) = self.category_pages.get_mut(&id) {
+                    page.retired = retired;
+                    page.playlists = Loadable::from_result(result);
+                }
             }
             ApiResponse::Discover {
                 term,
@@ -4632,6 +4734,16 @@ impl App {
         self.evict_stale_pages();
     }
 
+    /// Opens a browse category, remembering the name the grid already knows
+    /// so the page has a heading and a fallback search term immediately.
+    pub fn open_category(&mut self, id: &str, name: &str) {
+        let page = self.category_pages.entry(id.to_string()).or_default();
+        if !name.is_empty() {
+            page.name = name.to_string();
+        }
+        self.open(Page::Category(id.to_string()));
+    }
+
     /// Hands the app a Spotify link from outside, a canonical URI as
     /// [`crate::link::parse`] makes it: the window comes forward and the
     /// page opens once the account is signed in.
@@ -4712,6 +4824,7 @@ impl App {
         const MAX_ALBUM_PAGES: usize = 16;
         const MAX_ARTIST_PAGES: usize = 10;
         const MAX_SHOW_PAGES: usize = 8;
+        const MAX_CATEGORY_PAGES: usize = 8;
         const MAX_TRACK_CACHE: usize = 800;
 
         let mut protected_playlists = HashSet::new();
@@ -4723,6 +4836,7 @@ impl App {
         let mut protected_albums = HashSet::new();
         let mut protected_artists = HashSet::new();
         let mut protected_shows = HashSet::new();
+        let mut protected_categories = HashSet::new();
         match self.page() {
             Page::Playlist(id) => {
                 protected_playlists.insert(id.clone());
@@ -4735,6 +4849,9 @@ impl App {
             }
             Page::Show(id) => {
                 protected_shows.insert(id.clone());
+            }
+            Page::Category(id) => {
+                protected_categories.insert(id.clone());
             }
             _ => {}
         }
@@ -4786,11 +4903,19 @@ impl App {
             &protected_shows,
             MAX_SHOW_PAGES,
         );
+        evict_lru_map(
+            &mut self.category_pages,
+            &self.page_used,
+            |id| Page::Category(id.to_string()),
+            &protected_categories,
+            MAX_CATEGORY_PAGES,
+        );
         self.page_used.retain(|page, _| match page {
             Page::Playlist(id) => self.playlist_pages.contains_key(id),
             Page::Album(id) => self.album_pages.contains_key(id),
             Page::Artist(id) => self.artist_pages.contains_key(id),
             Page::Show(id) => self.show_pages.contains_key(id),
+            Page::Category(id) => self.category_pages.contains_key(id),
             _ => true,
         });
         if self.track_cache.len() > MAX_TRACK_CACHE {
@@ -5852,6 +5977,7 @@ impl App {
     pub(crate) fn apply(&mut self, action: Action, ctx: &egui::Context) {
         match action {
             Action::Open(page) => self.open(page),
+            Action::OpenCategory { id, name } => self.open_category(&id, &name),
             Action::OpenUri(uri) => {
                 if let Some(page) = Page::from_uri(&uri) {
                     self.open(page);
@@ -6348,8 +6474,15 @@ impl App {
                     self.refresh_queue(true);
                 }
             }
+            Action::ToggleVolumePopup => {
+                self.show_volume_popup = !self.show_volume_popup;
+                if self.show_volume_popup {
+                    self.show_devices = false;
+                }
+            }
             Action::ToggleDevicesPopup => {
                 self.show_devices = !self.show_devices;
+                self.show_volume_popup = false;
                 if self.show_devices {
                     self.refresh_devices();
                     // Receivers waiting on the network are invisible to the
@@ -6484,14 +6617,27 @@ impl App {
                 Err(error) => self.toast_error(format!("Couldn't clear artwork: {error}")),
             },
             Action::ToggleMiniPlayer => {
-                // One window at a time: this one closes and the loop in
-                // `main` opens the other layout, preserving the main geometry.
-                self.session_window_size = self.last_window_size.or(self.session_window_size);
-                self.session_window_pos = self.last_window_pos.or(self.session_window_pos);
                 self.settings.mini_player_open = !self.settings.mini_player_open;
                 self.settings_dirty = true;
-                self.switch_intent = true;
-                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                if self.settings.mini_player_open {
+                    // The level set at creation does not stick on X11.
+                    if self.settings.winamp_on_top {
+                        self.winamp_level_reassert = 3;
+                    }
+                } else {
+                    // The way out of the mini player is the main window, which
+                    // has been sitting behind it the whole time.
+                    ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Focus);
+                }
+            }
+            Action::CloseMiniPlayer => {
+                if self.settings.mini_player_open {
+                    self.settings.mini_player_open = false;
+                    self.settings_dirty = true;
+                }
+                // The window that was on top is going; hand the keyboard to
+                // the one that stays.
+                ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Focus);
             }
             Action::SetSkin(name) => {
                 self.settings.skin = name;
@@ -6511,18 +6657,13 @@ impl App {
                 // the live window.
                 self.push_winamp_level(ctx);
             }
+            // This window attribute is fixed at creation, but it rides in the
+            // mini player's viewport builder, so egui replaces that one
+            // window by itself on the next frame. The main window is untouched.
             Action::SetWinampTaskbar(visible) => {
                 if self.settings.winamp_show_taskbar != visible {
                     self.settings.winamp_show_taskbar = visible;
                     self.mark_settings_dirty();
-                    if self.settings.mini_player_open {
-                        // This window attribute is fixed at creation. Keep
-                        // the visible mini player, its position, and playback
-                        // while replacing only its native window.
-                        self.winamp.remember_position();
-                        self.switch_intent = true;
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                    }
                 }
             }
             Action::ToggleWinampPlaylist => {
@@ -6885,37 +7026,111 @@ impl App {
         }
     }
 
+    /// Draws the mini player into its own native window beside the main one.
+    ///
+    /// The immediate form is the only one that can borrow the application:
+    /// the deferred callback has to be `Fn + Send + Sync + 'static`, which no
+    /// `&mut App` can satisfy.
+    fn show_mini_viewport(&mut self, ctx: &egui::Context) {
+        // Without child windows there is nowhere to put it, and folding it
+        // into the main window would hide the interface behind it.
+        if !self.mini_player_visible() || ctx.embed_viewports() {
+            self.mini_viewport_open = false;
+            self.mini_viewport_taskbar = None;
+            return;
+        }
+        // Changing the taskbar attribute makes egui destroy and rebuild the
+        // window from this builder, so that frame has to carry the geometry
+        // the window has now rather than the one it was opened at.
+        let taskbar = self.settings.winamp_show_taskbar;
+        let rebuilding = !self.mini_viewport_open || self.mini_viewport_taskbar != Some(taskbar);
+        self.mini_viewport_open = true;
+        self.mini_viewport_taskbar = Some(taskbar);
+        let mut builder = egui::ViewportBuilder::default()
+            .with_title(self.window_title.clone())
+            .with_app_id("fastpotify")
+            .with_decorations(false)
+            .with_transparent(false)
+            .with_resizable(true)
+            .with_maximize_button(false)
+            .with_min_inner_size([260.0, 56.0])
+            // egui applies this native attribute on Windows only.
+            .with_taskbar(taskbar)
+            .with_window_level(on_top_window_level(self.settings.winamp_on_top));
+        if rebuilding {
+            // Only while the window is being created: sending the geometry
+            // every frame would fight the user's own dragging and resizing.
+            builder = builder.with_inner_size(self.settings.mini_player_size);
+            // This window has no decorations and no taskbar entry to drag it
+            // back from, so an off-screen position would strand it for good.
+            if let Some(pos) = self
+                .settings
+                .mini_player_pos
+                .filter(|pos| crate::window::can_restore(*pos, ctx.pixels_per_point()))
+            {
+                builder = builder.with_position(pos);
+            }
+        }
+        ctx.show_viewport_immediate(mini_viewport_id(), builder, |ui, class| {
+            let raised = self.actions.len();
+            crate::ui::compact_bar::show(self, ui);
+            // Cmd+W belongs to whichever window has the keys. Its action is
+            // applied later in the main window's pass, where it would close
+            // the wrong window, so re-aim it here.
+            for action in &mut self.actions[raised..] {
+                if matches!(action, Action::CloseWindow) {
+                    *action = Action::CloseMiniPlayer;
+                }
+            }
+            // A window-manager close, Cmd+W, and the macOS dot all land here.
+            // Without viewport support the close request read here would be
+            // the main window's, which must not take the mini player with it.
+            // A quit closes every window; forgetting the preference on the
+            // way out would be a different thing entirely.
+            if class != egui::ViewportClass::EmbeddedWindow
+                && !self.quit_requested
+                && ui.ctx().input(|input| input.viewport().close_requested())
+            {
+                self.actions.push(Action::CloseMiniPlayer);
+            }
+        });
+    }
+
     pub fn frame_ui(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         let ctx = &ctx;
         self.refresh_frame_now();
         self.apply_theme(ctx);
         self.lock_scroll_axis(ctx);
-        // Switch to the main window when sign-in is required.
+        // Sign-in belongs to the main window; the mini player has no room.
         let needs_sign_in = !(self.is_connected() && self.user.is_some())
             && !matches!(self.auth, AuthStatus::Connecting | AuthStatus::Starting)
             && !(self.is_connected() && self.user.is_none());
         // The mini player has no room for sign-in. Suspend it only in
         // memory so a transient failure never changes the saved preference.
-        if self.settings.mini_player_open && needs_sign_in && !self.mini_player_suspended {
+        if self.settings.mini_player_open && needs_sign_in {
             self.mini_player_suspended = true;
-            self.switch_intent = true;
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         } else if self.mini_player_suspended && !needs_sign_in {
             self.mini_player_suspended = false;
-            self.switch_intent = true;
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
-        if self.settings.mini_player_open && !self.mini_player_suspended {
+        // The screenshot harness can only capture the root viewport, so a
+        // capture run draws the mini player here instead of beside.
+        let inline = self.capturing() && self.settings.mini_player_open;
+        if inline {
+            #[cfg(feature = "demo")]
             crate::ui::compact_bar::show(self, ui);
         } else {
             crate::ui::show(self, ui);
+            self.show_mini_viewport(ctx);
         }
         self.apply_actions(ctx);
         self.refresh_frame_now();
         self.sync_media_controls(ctx);
 
-        if (!self.settings.mini_player_open || self.mini_player_suspended) && !self.switch_intent {
+        // The root viewport is always the main window now, so its geometry is
+        // always the one worth remembering -- unless this window only exists
+        // to be photographed at a size someone asked for on the command line.
+        if !self.capturing() {
             if let Some(rect) = ctx.input(|input| input.viewport().inner_rect) {
                 self.last_window_size = Some([rect.width(), rect.height()]);
             }
@@ -6937,9 +7152,19 @@ impl App {
         if self.is_connected() {
             ctx.request_repaint_after(self.connected_repaint_interval());
         }
+        // The mini player is drawn from inside this window's own pass, so
+        // closing this window ends it too, and the app quits or goes to the
+        // tray as it would without one. The saved `mini_player_open` is left
+        // alone, so the pair comes back together on the next window.
+        //
+        // Leaving the mini player up alone is not available here: the main
+        // window has to keep painting to host it, and neither way of taking
+        // it off the screen survives. `Visible(false)` detaches the view from
+        // the GL context and the next frame dies inside glutin on macOS, and
+        // `Minimized(true)` is refused outright for a window with no title
+        // bar, which is how this one is built.
         if ctx.input(|input| input.viewport().close_requested())
             && !self.quit_requested
-            && !self.switch_intent
             && self.hides_to_tray()
         {
             // Close the window and keep the process running in the tray.
@@ -7359,6 +7584,12 @@ pub fn percent_to_volume(percent: u8) -> u16 {
     ((u32::from(percent.min(100)) * u32::from(u16::MAX)) / 100) as u16
 }
 
+/// The mini player's own native window. It is a child viewport of the main
+/// window, so it needs an id of its own that both sides agree on.
+pub fn mini_viewport_id() -> egui::ViewportId {
+    egui::ViewportId::from_hash_of("fastpotify-mini-player")
+}
+
 /// The window level for the Winamp window's always-on-top setting. Shared by
 /// window creation and the live window, so the mapping is owned in one place.
 pub fn on_top_window_level(on_top: bool) -> egui::WindowLevel {
@@ -7741,34 +7972,30 @@ mod tests {
     }
 
     #[test]
-    fn returning_to_the_mini_player_leaves_skin_geometry_unused() {
+    fn the_main_window_restores_its_geometry_with_the_mini_player_open() {
+        // #given
         let mut app = headless_app();
         app.settings.mini_player_open = true;
         app.settings.winamp_shaded = true;
         app.winamp.restore_pos = Some([300.0, 200.0]);
-        app.last_window_size = Some([1024.0, 768.0]);
-        app.last_window_pos = Some([100.0, 100.0]);
+        app.session_window_size = Some([1024.0, 768.0]);
 
-        let main_ctx = egui::Context::default();
-        app.apply(Action::ToggleMiniPlayer, &main_ctx);
-        app.attach(&main_ctx);
-        app.apply(Action::ToggleMiniPlayer, &main_ctx);
-
-        let mini_ctx = egui::Context::default();
-        let mut output = mini_ctx.run_ui(Default::default(), |_ui| app.attach(&mini_ctx));
+        // #when
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(Default::default(), |_ui| app.attach(&ctx));
         output.textures_delta.clear();
+
+        // #then
         let commands = &output.viewport_output[&egui::ViewportId::ROOT].commands;
         assert!(app.settings.mini_player_open);
         assert!(app.settings.winamp_shaded);
-        assert!(commands.contains(&egui::ViewportCommand::Fullscreen(false)));
-        assert!(commands.contains(&egui::ViewportCommand::Maximized(false)));
+        assert!(commands.contains(&egui::ViewportCommand::InnerSize(egui::vec2(1024.0, 768.0))));
         assert!(
             !commands
                 .iter()
-                .any(|command| matches!(command, egui::ViewportCommand::OuterPosition(_)))
+                .any(|command| matches!(command, egui::ViewportCommand::OuterPosition(_))),
+            "the skin's remembered position is not the main window's"
         );
-        assert_eq!(app.session_window_size, Some([1024.0, 768.0]));
-        assert_eq!(app.session_window_pos, Some([100.0, 100.0]));
     }
 
     /// The song the last session ended on is shown, paused, at the position
@@ -9767,27 +9994,31 @@ mod tests {
     }
 
     #[test]
-    fn changing_mini_taskbar_visibility_recreates_only_an_open_mini_window() {
+    fn changing_mini_taskbar_visibility_never_closes_the_main_window() {
+        // #given
         let mut app = headless_app();
         app.backend.set_offline(true);
         let ctx = egui::Context::default();
-        app.apply(Action::SetWinampTaskbar(false), &ctx);
-        assert!(!app.settings.winamp_show_taskbar);
-        assert!(!app.switch_intent, "settings do not close the main window");
-        app.settings.mini_player_open = true;
         app.local.track = Some(crate::player::LocalTrack {
             uri: "spotify:track:continues".into(),
             ..Default::default()
         });
         app.local.playback = Playback::Playing;
+
+        // #when
+        app.settings.mini_player_open = true;
         let mut output = ctx.run_ui(egui::RawInput::default(), |_ui| {
-            app.apply(Action::SetWinampTaskbar(true), &ctx);
+            app.apply(Action::SetWinampTaskbar(false), &ctx);
         });
         output.textures_delta.clear();
-        assert!(app.settings.mini_player_open && app.switch_intent);
+
+        // #then: the attribute rides in the mini player's own viewport
+        // builder, so no window here has to be replaced.
+        assert!(!app.settings.winamp_show_taskbar);
+        assert!(app.settings.mini_player_open);
         assert!(!app.hide_intent && !app.quit_requested);
         assert!(
-            output.viewport_output[&egui::ViewportId::ROOT]
+            !output.viewport_output[&egui::ViewportId::ROOT]
                 .commands
                 .iter()
                 .any(|command| matches!(command, egui::ViewportCommand::Close))
@@ -9796,18 +10027,6 @@ mod tests {
         assert_eq!(
             app.local.track.as_ref().unwrap().uri,
             "spotify:track:continues"
-        );
-        app.switch_intent = false;
-        let mut output = ctx.run_ui(egui::RawInput::default(), |_ui| {
-            app.apply(Action::SetWinampTaskbar(true), &ctx);
-        });
-        output.textures_delta.clear();
-        assert!(!app.switch_intent);
-        assert!(
-            !output.viewport_output[&egui::ViewportId::ROOT]
-                .commands
-                .iter()
-                .any(|command| matches!(command, egui::ViewportCommand::Close))
         );
         app.apply(Action::ToggleMiniPlayer, &ctx);
         assert!(
@@ -12007,6 +12226,7 @@ mod tests {
 
     #[test]
     fn sign_in_suspends_and_restores_the_mini_player_without_changing_settings() {
+        // #given: the mini player is open, but nobody is signed in
         let mut app = headless_app();
         app.settings.mini_player_open = true;
         app.auth = AuthStatus::SignedOut;
@@ -12014,27 +12234,31 @@ mod tests {
         let ctx = egui::Context::default();
         app.attach(&ctx);
 
+        // #when
         let mut output = ctx.run_ui(Default::default(), |ui| app.frame_ui(ui));
         output.textures_delta.clear();
-        assert!(app.mini_player_suspended && app.switch_intent);
+
+        // #then: the window is withheld in memory only
+        assert!(app.mini_player_suspended);
+        assert!(!app.mini_player_visible());
         assert!(app.settings.mini_player_open);
         assert!(
             !app.settings_dirty,
             "sign-in must not persist a mode change"
         );
         assert!(
-            output.viewport_output[&egui::ViewportId::ROOT]
+            !output.viewport_output[&egui::ViewportId::ROOT]
                 .commands
-                .contains(&egui::ViewportCommand::Close)
+                .contains(&egui::ViewportCommand::Close),
+            "the main window carries the sign-in and stays open"
         );
 
-        app.attach(&ctx);
         let mut output = ctx.run_ui(Default::default(), |ui| app.frame_ui(ui));
         output.textures_delta.clear();
         assert!(app.mini_player_suspended);
-        assert!(!app.switch_intent, "sign-in stays in the main window");
         assert!(!app.settings_dirty);
 
+        // #when: the account comes back
         app.auth = AuthStatus::Connected {
             username: "listener".into(),
         };
@@ -12054,15 +12278,17 @@ mod tests {
         ));
         let mut output = ctx.run_ui(input, |ui| app.frame_ui(ui));
         output.textures_delta.clear();
-        assert!(!app.mini_player_suspended && app.switch_intent);
+
+        // #then
+        assert!(!app.mini_player_suspended && app.mini_player_visible());
         assert!(app.settings.mini_player_open);
         assert!(!app.settings_dirty, "resuming must preserve the saved mode");
         assert_eq!(
             app.settings.mini_player_size, saved_size,
-            "the outgoing main window must not overwrite the mini player's size"
+            "the main window's geometry must not overwrite the mini player's"
         );
         assert!(
-            output.viewport_output[&egui::ViewportId::ROOT]
+            !output.viewport_output[&egui::ViewportId::ROOT]
                 .commands
                 .contains(&egui::ViewportCommand::Close)
         );
@@ -12086,86 +12312,322 @@ mod tests {
         assert!(
             !commands
                 .iter()
-                .any(|command| matches!(command, egui::ViewportCommand::WindowLevel(_)))
+                .any(|command| matches!(command, egui::ViewportCommand::WindowLevel(_))),
+            "the main window keeps its own level"
         );
         assert_eq!(app.winamp_level_reassert, 0);
         assert!(app.settings.mini_player_open && app.mini_player_suspended);
     }
 
-    /// Switching from the mini player back to the main window preserves the main
-    /// window's size and position across the closing mini-window frame.
+    /// The mini player is a second window now, so opening it leaves the main
+    /// window's own geometry exactly where it was.
     #[test]
-    fn closing_mini_player_frame_does_not_overwrite_main_window_geometry() {
+    fn opening_the_mini_player_leaves_the_main_window_alone() {
+        // #given
         let mut app = headless_app();
         app.last_window_size = Some([1024.0, 768.0]);
         app.last_window_pos = Some([100.0, 150.0]);
-
-        // Toggle from main window to mini player
         let ctx = egui::Context::default();
-        app.actions.push(Action::ToggleMiniPlayer);
-        app.apply_actions(&ctx);
-
-        assert!(app.settings.mini_player_open);
-        assert!(app.switch_intent);
-        assert_eq!(app.session_window_size, Some([1024.0, 768.0]));
-        assert_eq!(app.session_window_pos, Some([100.0, 150.0]));
-
-        // Attach the mini player (clears switch_intent, keeps session geometry)
         app.attach(&ctx);
-        assert!(!app.switch_intent);
-        assert_eq!(app.session_window_size, Some([1024.0, 768.0]));
 
-        // Trigger switch back to the main window
+        // #when
         app.actions.push(Action::ToggleMiniPlayer);
+        let mut output = ctx.run_ui(Default::default(), |_ui| app.apply_actions(&ctx));
+        output.textures_delta.clear();
 
-        // Run the closing frame of the mini-window with its tiny viewport geometry
+        // #then
+        assert!(app.settings.mini_player_open && app.settings_dirty);
+        assert_eq!(app.session_window_size, None);
+        assert_eq!(app.session_window_pos, None);
+        assert!(
+            !output.viewport_output[&egui::ViewportId::ROOT]
+                .commands
+                .contains(&egui::ViewportCommand::Close),
+            "the main window keeps running behind the mini player"
+        );
+
+        // #when: a frame runs while the mini player is open
         let mut raw_input = egui::RawInput::default();
-        let mini_rect = egui::Rect::from_min_size(egui::pos2(50.0, 50.0), egui::vec2(275.0, 116.0));
+        let main_rect =
+            egui::Rect::from_min_size(egui::pos2(100.0, 150.0), egui::vec2(1024.0, 768.0));
         let viewport = raw_input
             .viewports
             .entry(egui::ViewportId::ROOT)
             .or_default();
-        viewport.inner_rect = Some(mini_rect);
-        viewport.outer_rect = Some(mini_rect);
-
-        let mut closing_output = ctx.run_ui(raw_input, |ui| {
-            app.frame_ui(ui);
-        });
-        closing_output.textures_delta.clear();
-
-        // The closing frame switched window mode and armed switch_intent...
-        assert!(!app.settings.mini_player_open);
-        assert!(app.switch_intent);
-
-        // ...but switch_intent prevented the closing mini-window rect from
-        // overwriting the saved main window size and position.
-        assert_eq!(app.last_window_size, Some([1024.0, 768.0]));
-        assert_eq!(app.last_window_pos, Some([100.0, 150.0]));
-        assert_eq!(app.session_window_size, Some([1024.0, 768.0]));
-        assert_eq!(app.session_window_pos, Some([100.0, 150.0]));
-
-        // Attaching the new main window restores the saved geometry via viewport commands
-        let main_ctx = egui::Context::default();
-        let mut output = main_ctx.run_ui(Default::default(), |_ui| {
-            app.attach(&main_ctx);
-        });
+        viewport.inner_rect = Some(main_rect);
+        viewport.outer_rect = Some(main_rect);
+        let mut output = ctx.run_ui(raw_input, |ui| app.frame_ui(ui));
         output.textures_delta.clear();
 
-        let commands = &output
-            .viewport_output
-            .get(&egui::ViewportId::ROOT)
-            .expect("the root viewport")
-            .commands;
+        // #then: the root viewport is still the main window's
+        assert_eq!(app.last_window_size, Some([1024.0, 768.0]));
+        assert_eq!(app.last_window_pos, Some([100.0, 150.0]));
+
+        // #when: the mini player is closed from its own window
+        app.actions.push(Action::CloseMiniPlayer);
+        app.apply_actions(&ctx);
+
+        // #then
+        assert!(!app.settings.mini_player_open);
+        app.settings_dirty = false;
+        app.actions.push(Action::CloseMiniPlayer);
+        app.apply_actions(&ctx);
         assert!(
-            commands.contains(&egui::ViewportCommand::InnerSize(egui::vec2(1024.0, 768.0))),
-            "attach restored the main window size: {commands:?}"
+            !app.settings_dirty,
+            "closing an already closed mini player changes nothing"
         );
+    }
+
+    #[test]
+    fn the_mini_player_has_a_window_of_its_own() {
+        assert_ne!(mini_viewport_id(), egui::ViewportId::ROOT);
+        assert_eq!(mini_viewport_id(), mini_viewport_id());
+    }
+
+    thread_local! {
+        /// Every builder the harness below was asked to build a window from.
+        static MINI_BUILDERS: std::cell::RefCell<Vec<egui::ViewportBuilder>> =
+            const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    /// A stand-in for eframe's window backend.
+    ///
+    /// A bare `egui::Context` embeds child viewports, which makes
+    /// `show_mini_viewport` return before it builds anything. Registering a
+    /// renderer is what eframe does on desktop, and it is the only way these
+    /// tests can see the window the mini player actually asks for.
+    fn hosting_app() -> (egui::Context, App) {
+        MINI_BUILDERS.with(|builders| builders.borrow_mut().clear());
+        egui::Context::set_immediate_viewport_renderer(|ctx, mut viewport| {
+            MINI_BUILDERS.with(|builders| builders.borrow_mut().push(viewport.builder.clone()));
+            let mut input = egui::RawInput {
+                viewport_id: viewport.ids.this,
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(460.0, 96.0),
+                )),
+                ..Default::default()
+            };
+            input
+                .viewports
+                .insert(viewport.ids.this, egui::ViewportInfo::default());
+            let mut output = ctx.run_ui(input, |ui| (viewport.viewport_ui_cb)(ui));
+            output.textures_delta.clear();
+        });
+        let ctx = egui::Context::default();
+        ctx.set_embed_viewports(false);
+        let mut app = headless_app();
+        app.settings.mini_player_open = true;
+        app.auth = AuthStatus::Connected {
+            username: "listener".into(),
+        };
+        app.user = Some(User {
+            id: "listener".into(),
+            ..Default::default()
+        });
+        app.attach(&ctx);
+        (ctx, app)
+    }
+
+    fn root_close_input() -> egui::RawInput {
+        let mut input = egui::RawInput::default();
+        input
+            .viewports
+            .entry(egui::ViewportId::ROOT)
+            .or_default()
+            .events
+            .push(egui::ViewportEvent::Close);
+        input
+    }
+
+    fn mini_builders() -> Vec<egui::ViewportBuilder> {
+        MINI_BUILDERS.with(|builders| builders.borrow().clone())
+    }
+
+    /// The window swap used to hand these to `run_native`. They now ride in
+    /// the child viewport's builder, where nothing was watching them.
+    #[test]
+    fn the_mini_window_is_built_with_its_own_native_attributes() {
+        // #given
+        let (ctx, mut app) = hosting_app();
+        app.settings.winamp_on_top = true;
+        app.settings.winamp_show_taskbar = false;
+        app.settings.mini_player_size = [420.0, 92.0];
+        app.settings.mini_player_pos = Some([300.0, 200.0]);
+
+        // #when
+        let mut output = ctx.run_ui(Default::default(), |ui| app.frame_ui(ui));
+        output.textures_delta.clear();
+
+        // #then
+        let builders = mini_builders();
+        let builder = builders.first().expect("the mini window was built");
+        assert_eq!(
+            builder.window_level,
+            Some(egui::WindowLevel::AlwaysOnTop),
+            "the on-top setting has to reach the window it is about"
+        );
+        assert_eq!(builder.taskbar, Some(false));
+        assert_eq!(builder.decorations, Some(false));
+        assert_eq!(builder.inner_size, Some(egui::vec2(420.0, 92.0)));
+        assert_eq!(builder.position, Some(egui::pos2(300.0, 200.0)));
+        assert_eq!(builder.min_inner_size, Some(egui::vec2(260.0, 56.0)));
         assert!(
-            commands.contains(&egui::ViewportCommand::OuterPosition(egui::pos2(
-                100.0, 150.0
-            ))),
-            "attach restored the main window position: {commands:?}"
+            !output.viewport_output[&egui::ViewportId::ROOT]
+                .commands
+                .iter()
+                .any(|command| matches!(command, egui::ViewportCommand::WindowLevel(_))),
+            "the main window keeps its own level"
         );
+        // The on-top level is re-asserted at the mini window, not the root.
+        app.winamp_level_reassert = 1;
+        let mut output = ctx.run_ui(Default::default(), |ui| {
+            app.frame_ui(ui);
+            app.push_winamp_level(&ctx);
+        });
+        output.textures_delta.clear();
+        assert!(
+            output.viewport_output[&mini_viewport_id()]
+                .commands
+                .contains(&egui::ViewportCommand::WindowLevel(
+                    egui::WindowLevel::AlwaysOnTop
+                ))
+        );
+        app.backend.shutdown();
+    }
+
+    /// Resizing and dragging the window has to outlive the next frame, and
+    /// survive the rebuild that changing a native attribute forces.
+    #[test]
+    fn the_mini_window_keeps_the_geometry_it_was_given() {
+        // #given: a window that has been open for a frame
+        let (ctx, mut app) = hosting_app();
+        app.settings.winamp_show_taskbar = true;
+        let mut output = ctx.run_ui(Default::default(), |ui| app.frame_ui(ui));
+        output.textures_delta.clear();
+
+        // #when: nothing about it changes
+        let mut output = ctx.run_ui(Default::default(), |ui| app.frame_ui(ui));
+        output.textures_delta.clear();
+
+        // #then: the builder stops steering it, or it would fight the mouse
+        let builders = mini_builders();
+        assert_eq!(builders.len(), 2);
+        assert_eq!(builders[1].inner_size, None);
+        assert_eq!(builders[1].position, None);
+
+        // #when: the taskbar attribute changes, which egui answers by
+        // destroying the window and building it again from this builder
+        app.settings.mini_player_size = [512.0, 104.0];
+        app.settings.mini_player_pos = Some([640.0, 360.0]);
+        app.settings.winamp_show_taskbar = false;
+        let mut output = ctx.run_ui(Default::default(), |ui| app.frame_ui(ui));
+        output.textures_delta.clear();
+
+        // #then: it comes back where it stood, not where it opened
+        let builders = mini_builders();
+        assert_eq!(builders[2].taskbar, Some(false));
+        assert_eq!(builders[2].inner_size, Some(egui::vec2(512.0, 104.0)));
+        assert_eq!(builders[2].position, Some(egui::pos2(640.0, 360.0)));
+        app.backend.shutdown();
+    }
+
+    /// The mini window has no decorations and no taskbar button, so a
+    /// position on a monitor that is gone would strand it for good.
+    #[test]
+    fn an_unreachable_mini_window_position_is_left_to_the_platform() {
+        let (ctx, mut app) = hosting_app();
+        app.settings.mini_player_pos = Some([9000.0, 9000.0]);
+        let mut output = ctx.run_ui(Default::default(), |ui| app.frame_ui(ui));
+        output.textures_delta.clear();
+        let builders = mini_builders();
+        assert_eq!(builders[0].position, None);
+        assert!(builders[0].inner_size.is_some(), "only the position is lost");
+        app.backend.shutdown();
+    }
+
+    /// The mini player's pass runs inside the main window's. A quit asked for
+    /// before it must still reach the window it was aimed at.
+    #[test]
+    fn quitting_closes_the_main_window_with_the_mini_player_on_screen() {
+        let (ctx, mut app) = hosting_app();
+        let mut output = ctx.run_ui(Default::default(), |ui| {
+            app.apply(Action::Quit, &ctx);
+            app.frame_ui(ui);
+        });
+        output.textures_delta.clear();
+        assert!(app.quit_requested);
+        assert!(
+            output.viewport_output[&egui::ViewportId::ROOT]
+                .commands
+                .contains(&egui::ViewportCommand::Close),
+            "the child pass must not swallow the main window's close"
+        );
+        // And a close arriving at the mini window during a quit is the quit,
+        // not somebody switching modes.
+        app.actions.clear();
+        let mut input = egui::RawInput::default();
+        input
+            .viewports
+            .insert(mini_viewport_id(), egui::ViewportInfo::default());
+        let mut output = ctx.run_ui(input, |ui| app.frame_ui(ui));
+        output.textures_delta.clear();
+        assert!(app.settings.mini_player_open, "quitting is not closing");
+        app.backend.shutdown();
+    }
+
+    /// The mini player is hosted by the main window's pass, so closing that
+    /// window ends both. What must survive is the preference: the pair comes
+    /// back together, rather than the app reopening as the big window alone.
+    #[test]
+    fn closing_the_main_window_keeps_the_mini_player_for_the_next_one() {
+        // #given
+        let (ctx, mut app) = hosting_app();
+        let mut output = ctx.run_ui(Default::default(), |ui| app.frame_ui(ui));
+        output.textures_delta.clear();
+        app.settings_dirty = false;
+
+        // #when
+        let mut output = ctx.run_ui(root_close_input(), |ui| app.frame_ui(ui));
+        output.textures_delta.clear();
+
+        // #then: the close runs its normal course, and the mode is untouched
+        assert!(
+            !output.viewport_output[&egui::ViewportId::ROOT]
+                .commands
+                .contains(&egui::ViewportCommand::CancelClose)
+        );
+        assert!(app.settings.mini_player_open && !app.settings_dirty);
+        assert!(!app.quit_requested);
+
+        // #when: a new window opens where the old one left off
+        app.attach(&ctx);
+        let mut output = ctx.run_ui(Default::default(), |ui| app.frame_ui(ui));
+        output.textures_delta.clear();
+        assert!(
+            output.viewport_output.contains_key(&mini_viewport_id()),
+            "the mini player comes back with the window that hosts it"
+        );
+        app.backend.shutdown();
+    }
+
+    /// Closing the mini player leaves the main window without the keys,
+    /// because the window that had them is the one that just went away.
+    #[test]
+    fn closing_the_mini_player_hands_the_keyboard_back() {
+        let (ctx, mut app) = hosting_app();
+        let mut output = ctx.run_ui(Default::default(), |ui| app.frame_ui(ui));
+        output.textures_delta.clear();
+        app.actions.push(Action::CloseMiniPlayer);
+        let mut output = ctx.run_ui(Default::default(), |_ui| app.apply_actions(&ctx));
+        output.textures_delta.clear();
+        assert!(!app.settings.mini_player_open && app.settings_dirty);
+        assert!(
+            output.viewport_output[&egui::ViewportId::ROOT]
+                .commands
+                .contains(&egui::ViewportCommand::Focus)
+        );
+        app.backend.shutdown();
     }
 
     fn cached_liked_app() -> App {

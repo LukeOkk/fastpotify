@@ -10,10 +10,10 @@ use std::time::Instant;
 use jiff::{SignedDuration, Timestamp};
 
 use crate::api::models::{
-    Album, Artist, ArtistRef, Context, Copyright, Device, Episode, Followers, Image, Owner,
-    Page as ApiPage, PlayHistory, PlayableItem, PlaybackState, Playlist, PlaylistItem, Queue,
-    ResumePoint, SavedAlbum, SavedEpisode, SavedShow, SavedTrack, SearchResults, Show, Track,
-    TrackCount, User,
+    Album, Artist, ArtistRef, Category, Context, Copyright, Device, Episode, Followers, Image,
+    Owner, Page as ApiPage, PlayHistory, PlayableItem, PlaybackState, Playlist, PlaylistItem,
+    Queue, ResumePoint, SavedAlbum, SavedEpisode, SavedShow, SavedTrack, SearchResults, Show,
+    Track, TrackCount, User,
 };
 use crate::app::{App, RemoteSnapshot};
 use crate::backend::AuthStatus;
@@ -95,6 +95,30 @@ fn demo_added_at(index: usize, now: Timestamp) -> String {
     };
     (now - age).to_string()
 }
+
+/// Browse categories, as `(id, name)`. The ids are what the card colours
+/// hash, so keep them stable or every screenshot repaints.
+const CATEGORIES: &[(&str, &str)] = &[
+    ("music", "Music"),
+    ("podcasts", "Podcasts"),
+    ("live-events", "Live Events"),
+    ("fitness", "Fitness"),
+    ("made-for-you", "Made For You"),
+    ("new-releases", "New Releases"),
+    ("sessions", "Spotify Sessions"),
+    ("latin", "Latin"),
+    ("pop", "Pop"),
+    ("cumbia", "Cumbia"),
+    ("nature", "Nature & Relaxing Sounds"),
+    ("funk", "Funk"),
+    ("singles", "Spotify Singles"),
+    ("summer", "Summer"),
+    ("country", "Country"),
+    ("fresh-finds", "Fresh Finds"),
+    ("wellness", "Wellness"),
+    ("trendsetters", "Trendsetters"),
+    ("mixed-by", "Mixed By"),
+];
 
 const PLAYLISTS: &[&str] = &[
     "Discover Weekly",
@@ -479,6 +503,35 @@ pub fn populate(app: &mut App) {
             .insert((*term).to_string(), Loadable::Loaded(matching));
     }
 
+    // Explore: the category grid, plus one category each way a click can go.
+    app.explore = Loadable::Loaded(
+        CATEGORIES
+            .iter()
+            .enumerate()
+            .map(|(index, (id, name))| Category {
+                id: (*id).into(),
+                name: (*name).into(),
+                icons: image(200 + index as u32),
+            })
+            .collect(),
+    );
+    app.category_pages.insert(
+        "pop".into(),
+        CategoryPage {
+            name: "Pop".into(),
+            playlists: Loadable::Loaded(playlists.clone()),
+            retired: false,
+        },
+    );
+    app.category_pages.insert(
+        "cumbia".into(),
+        CategoryPage {
+            name: "Cumbia".into(),
+            playlists: Loadable::Loaded(playlists.iter().rev().cloned().collect()),
+            retired: true,
+        },
+    );
+
     // Search.
     app.search.query = "Bonobo".into();
     app.search.committed = "Bonobo".into();
@@ -624,6 +677,10 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
                 app.queue_tab = QueueTab::Recents;
             }
             "devices" => app.show_devices = true,
+            "explore" => app.open(Page::Explore),
+            "category" => app.open(Page::Category("pop".into())),
+            // The category whose playlist feed Spotify retired.
+            "category-retired" => app.open(Page::Category("cumbia".into())),
             "german" => app.locale = crate::i18n::Locale::German,
             "update" => {
                 app.update = Some(crate::updates::Release {
@@ -689,6 +746,10 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
             "mini-settings" => {
                 app.settings.mini_player_open = true;
                 app.show_mini_player_settings = true;
+            }
+            "mini-volume" => {
+                app.settings.mini_player_open = true;
+                app.show_volume_popup = true;
             }
             "playlist" => app.settings.playlist_open = true,
             "shade" => app.settings.winamp_shaded = true,
@@ -1633,14 +1694,12 @@ mod tests {
             1,
             "Settings must offer exactly one mini player toggle"
         );
-        assert!(
-            !tree.nodes.iter().any(|(_, node)| {
-                matches!(
-                    node.label(),
-                    Some("Compact bar" | "Winamp skins" | "Show Winamp in taskbar")
-                )
-            })
-        );
+        assert!(!tree.nodes.iter().any(|(_, node)| {
+            matches!(
+                node.label(),
+                Some("Compact bar" | "Winamp skins" | "Show Winamp in taskbar")
+            )
+        }));
         let control = accessible_node(&tree, "Switch to it", Role::Button);
         let (_, actions) = render(vec![accessible_action(
             control,
@@ -1685,7 +1744,7 @@ mod tests {
             )],
         );
         assert!(!app.settings.winamp_show_taskbar);
-        assert!(!app.settings.mini_player_open && !app.switch_intent);
+        assert!(!app.settings.mini_player_open);
         let path = app.dirs.config.join("mini-player-taskbar-choice.json");
         app.settings.save(&path);
         app.settings = Settings::load(&path);
@@ -2078,6 +2137,94 @@ mod tests {
                 modifiers: egui::Modifiers::NONE,
             },
         ]
+    }
+
+    #[test]
+    fn explore_and_category_pages_survive_a_round_trip_through_settings() {
+        for page in [
+            Page::Explore,
+            Page::Category("0JQ5DAqbMKFz6FAsUtgAab".into()),
+        ] {
+            assert_eq!(Page::decode(&page.encode()), Some(page.clone()), "{page:?}");
+        }
+    }
+
+    #[test]
+    fn explore_grid_lists_every_category_and_opens_the_one_clicked() {
+        let (ctx, mut app) = accessible_app("explore-grid");
+        let view = crate::ui::explore::show;
+        let drawn = view_frame(&ctx, &mut app, vec![], view);
+
+        for (_, name) in CATEGORIES {
+            assert!(
+                drawn.iter().any(|(text, _)| text == name),
+                "{name} is missing from the grid"
+            );
+        }
+
+        let pop = drawn
+            .iter()
+            .find(|(text, _)| text == "Pop")
+            .expect("Pop card")
+            .1
+            .center();
+        app.actions.clear();
+        view_frame(
+            &ctx,
+            &mut app,
+            pointer_click(pop, egui::PointerButton::Primary),
+            view,
+        );
+
+        assert!(app.actions.iter().any(|action| matches!(
+            action,
+            Action::OpenCategory { id, name } if id == "pop" && name == "Pop"
+        )));
+        app.backend.shutdown();
+    }
+
+    /// A silent empty page is the bug this guards: the retired category feed
+    /// must say where its playlists came from, and a live one must not.
+    #[test]
+    fn a_retired_category_explains_its_search_results() {
+        fn retired(app: &mut App, ui: &mut egui::Ui) {
+            crate::ui::explore::category(app, ui, "cumbia");
+        }
+        fn live(app: &mut App, ui: &mut egui::Ui) {
+            crate::ui::explore::category(app, ui, "pop");
+        }
+        let mentions_the_retirement = |drawn: Vec<(String, egui::Rect)>| {
+            drawn.iter().any(|(text, _)| text.contains("November 2024"))
+        };
+
+        let (ctx, mut app) = accessible_app("explore-retired");
+        assert!(mentions_the_retirement(view_frame(
+            &ctx,
+            &mut app,
+            vec![],
+            retired
+        )));
+        assert!(!mentions_the_retirement(view_frame(
+            &ctx,
+            &mut app,
+            vec![],
+            live
+        )));
+        app.backend.shutdown();
+    }
+
+    #[test]
+    fn an_unloaded_category_shows_progress_rather_than_an_empty_page() {
+        fn unfetched(app: &mut App, ui: &mut egui::Ui) {
+            crate::ui::explore::category(app, ui, "never-fetched");
+        }
+
+        let (ctx, mut app) = accessible_app("explore-loading");
+        app.backend.set_offline(true);
+        let drawn = view_frame(&ctx, &mut app, vec![], unfetched);
+
+        assert!(drawn.iter().any(|(text, _)| text.contains("Loading")));
+        app.backend.shutdown();
     }
 
     #[test]
@@ -2995,6 +3142,10 @@ mod tests {
             Page::Home,
             Page::TopSongs,
             Page::Search,
+            Page::Explore,
+            Page::Category("pop".into()),
+            Page::Category("cumbia".into()),
+            Page::Category("never-loaded".into()),
             Page::LikedSongs,
             Page::Albums,
             Page::Artists,

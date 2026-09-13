@@ -86,10 +86,14 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 }
                 ui.add_space(2.0);
             }
-            if !app.settings.sidebar_visible
-                && nav_button(ui, &palette, Icon::House, true, "Home").clicked()
-            {
-                app.actions.push(Action::Open(Page::Home));
+            if !app.settings.sidebar_visible {
+                if nav_button(ui, &palette, Icon::House, true, "Home").clicked() {
+                    app.actions.push(Action::Open(Page::Home));
+                }
+                // Without the sidebar this is the only way back to Explore.
+                if nav_button(ui, &palette, Icon::Compass, true, "Explore").clicked() {
+                    app.actions.push(Action::Open(Page::Explore));
+                }
             }
             if nav_button(ui, &palette, Icon::ChevronLeft, app.can_go_back(), "Back").clicked() {
                 app.actions.push(Action::Back);

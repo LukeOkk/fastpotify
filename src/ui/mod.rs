@@ -2,14 +2,18 @@
 
 pub mod artist;
 pub mod collection;
+pub mod compact_bar;
 pub(crate) mod devices;
 mod dialogs;
+pub mod equalizer_window;
+pub mod explore;
 pub mod home;
 mod keys;
 pub mod library;
 pub mod login;
 mod lyrics;
 pub mod player_bar;
+pub mod playlist_window;
 pub mod queue;
 pub mod search;
 pub mod settings;
@@ -17,9 +21,6 @@ pub mod show;
 pub mod sidebar;
 pub mod topbar;
 pub mod widgets;
-pub mod compact_bar;
-pub mod equalizer_window;
-pub mod playlist_window;
 pub mod winamp;
 
 use egui::{Align2, Color32, CornerRadius, Frame, Margin, Rect, Stroke, vec2};
@@ -115,7 +116,14 @@ fn central(app: &mut App, ui: &mut egui::Ui) {
             if let Some(tint) = tint {
                 let strength = if matches!(
                     app.page(),
-                    Page::Home | Page::Search | Page::Settings | Page::Queue
+                    // Pages with no artwork of their own: a full-strength
+                    // tint borrowed from the player would be arbitrary.
+                    Page::Home
+                        | Page::Search
+                        | Page::Explore
+                        | Page::Category(_)
+                        | Page::Settings
+                        | Page::Queue
                 ) {
                     0.45
                 } else {
@@ -145,6 +153,8 @@ fn central(app: &mut App, ui: &mut egui::Ui) {
                                 Page::Home => home::show(app, ui),
                                 Page::TopSongs => collection::top_songs(app, ui),
                                 Page::Search => search::show(app, ui),
+                                Page::Explore => explore::show(app, ui),
+                                Page::Category(id) => explore::category(app, ui, &id),
                                 Page::LikedSongs => collection::liked(app, ui),
                                 Page::Albums | Page::Artists | Page::Podcasts | Page::Episodes => {
                                     library::show(app, ui, page)
